@@ -181,6 +181,22 @@ UpdateManager.prototype.startDownloadRequest = function(url, rangeStart) {
   self.downloadFile = fs.createWriteStream(self.downloadPath, fileOpts)
 
   self.downloadReq = mod.request(opts, function(res) {
+    if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+      res.resume()
+      if (self.downloadFile) {
+        try { self.downloadFile.close() } catch(e) {}
+        self.downloadFile = null
+      }
+      var redirectUrl = res.headers.location
+      if (redirectUrl.startsWith('/')) {
+        redirectUrl = parsedUrl.origin + redirectUrl
+      }
+      self.receivedBytes = 0
+      self.totalBytes = 0
+      self.startDownloadRequest(redirectUrl, 0)
+      return
+    }
+
     self.totalBytes = parseInt(res.headers['content-length']) || 0
     if (rangeStart > 0 && self.totalBytes > 0) {
       self.totalBytes += rangeStart
@@ -293,13 +309,14 @@ UpdateManager.prototype.installUpdate = function() {
   try {
     var installerPath = this.downloadPath
     setTimeout(function() {
-      spawn(installerPath, ['/S', '/silent'], {
-        detached: true,
-        stdio: 'ignore'
-      }).unref()
+      try {
+        spawn(installerPath, ['/S', '/silent'], {
+          detached: true,
+          stdio: 'ignore'
+        }).unref()
+      } catch(e) {}
+      app.quit()
     }, 500)
-
-    app.quit()
   } catch (e) {
     this.sendToRenderer('update-error', { error: 'Install error: ' + e.message })
   }
