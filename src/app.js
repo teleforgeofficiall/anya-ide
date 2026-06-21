@@ -1,26 +1,25 @@
 function AnyaApp() {
   var self = this
 
-  this.titleBar = new TitleBar()
-  this.editorManager = new EditorManager()
-  this.sidebar = new Sidebar(function(filePath) { self.editorManager.openFile(filePath) })
-  this.statusBar = new StatusBar()
-  this.chat = new ChatPanel(function() { return self.getEditorContext() })
-  this.commandPalette = new CommandPalette(function(cmd) { self.handleCommand(cmd) })
   this.sidebarVisible = true
-
   this.terminal = null
-  this.initTerminal()
 
-  this.settings = new SettingsPage()
-  this.updateNotification = new UpdateNotification()
+  try { this.titleBar = new TitleBar() } catch(e) { console.error('TitleBar init failed:', e) }
+  try { this.editorManager = new EditorManager() } catch(e) { console.error('EditorManager init failed:', e) }
+  try { this.sidebar = new Sidebar(function(filePath) { self.editorManager && self.editorManager.openFile(filePath) }) } catch(e) { console.error('Sidebar init failed:', e) }
+  try { this.statusBar = new StatusBar() } catch(e) { console.error('StatusBar init failed:', e) }
+  try { this.chat = new ChatPanel(function() { return self.getEditorContext() }) } catch(e) { console.error('ChatPanel init failed:', e) }
+  try { this.commandPalette = new CommandPalette(function(cmd) { self.handleCommand(cmd) }) } catch(e) { console.error('CommandPalette init failed:', e) }
+  try { this.initTerminal() } catch(e) { console.error('Terminal init failed:', e) }
+  try { this.settings = new SettingsPage() } catch(e) { console.error('SettingsPage init failed:', e) }
+  try { this.updateNotification = new UpdateNotification() } catch(e) { console.error('UpdateNotification init failed:', e) }
 
-  this.initKeybindings()
-  this.initMenuEvents()
-  this.initEditorEvents()
-  this.showWelcome()
-  this.initMenuListener()
-  this.initSearchEvents()
+  try { this.initKeybindings() } catch(e) { console.error('Keybindings init failed:', e) }
+  try { this.initMenuEvents() } catch(e) { console.error('MenuEvents init failed:', e) }
+  try { this.initEditorEvents() } catch(e) { console.error('EditorEvents init failed:', e) }
+  try { this.showWelcome() } catch(e) { console.error('Welcome init failed:', e) }
+  try { this.initMenuListener() } catch(e) { console.error('MenuListener init failed:', e) }
+  try { this.initSearchEvents() } catch(e) { console.error('SearchEvents init failed:', e) }
 }
 
 AnyaApp.prototype.initTerminal = function() {

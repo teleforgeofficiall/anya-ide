@@ -23,7 +23,11 @@ let updateManager = null
 function killAllProcesses() {
   for (const [id, proc] of terminalProcesses) {
     try { proc.kill('SIGTERM') } catch(e) {}
-    try { process.kill(-proc.pid) } catch(e) {}
+    if (process.platform === 'win32') {
+      try { require('child_process').spawn('taskkill', ['/F', '/T', '/PID', String(proc.pid)]) } catch(e) {}
+    } else {
+      try { process.kill(-proc.pid) } catch(e) {}
+    }
   }
   setTimeout(function() {
     for (const [id, proc] of terminalProcesses) {
@@ -442,7 +446,7 @@ ipcMain.handle('terminal-resize', (event, { id, cols, rows }) => {
   }
 })
 
-ipcMain.handle('terminal-kill', (event, id) => {
+ipcMain.handle('terminal-kill', (event, { id }) => {
   const proc = terminalProcesses.get(id)
   if (proc) {
     proc.kill()
