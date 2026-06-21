@@ -87,6 +87,7 @@ SettingsPage.prototype.renderSettings = function() {
           '</div>' +
         '</div>' +
         '<div class="settings-footer">' +
+          '<button id="settings-reset" class="settings-btn settings-btn-reset">↻ Reset All</button>' +
           '<button id="settings-cancel" class="settings-btn settings-btn-outline">Cancel</button>' +
           '<button id="settings-save" class="settings-btn settings-btn-primary">Save Settings</button>' +
         '</div>' +
@@ -105,6 +106,7 @@ SettingsPage.prototype.renderSettings = function() {
     }
   })
 
+  document.getElementById('settings-reset').onclick = function() { self.resetAll() }
   document.getElementById('settings-cancel').onclick = function() { self.close() }
   document.getElementById('settings-save').onclick = function() { self.saveConfig() }
 
@@ -580,6 +582,26 @@ SettingsPage.prototype.saveConfig = function() {
     } else {
       AnyaToast.error('Failed to save settings: ' + result.error)
     }
+  })()
+}
+
+SettingsPage.prototype.resetAll = function() {
+  var self = this
+  if (!confirm('Reset all settings to default?\n\nThis will restore the original pink theme and clear all preferences.')) return
+  if (!confirm('Are you sure? All settings will be permanently reset.')) return
+
+  this.config = {}
+  var root = document.documentElement
+  root.style.removeProperty('--anya-primary')
+  root.style.removeProperty('--anya-bg')
+  root.style.removeProperty('--anya-text')
+  root.style.removeProperty('--font-size')
+
+  ;(async function() {
+    await window.anya.config.write(self.config)
+    self.close()
+    AnyaToast.success('Settings reset to default')
+    setTimeout(function() { location.reload() }, 800)
   })()
 }
 

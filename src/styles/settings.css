@@ -280,6 +280,25 @@
   background: rgba(244, 67, 54, 0.08);
 }
 
+.settings-btn-reset {
+  background: transparent;
+  color: var(--anya-warning);
+  border: 1px solid var(--anya-warning);
+  margin-right: auto;
+}
+
+.settings-btn-reset:hover {
+  background: rgba(255, 152, 0, 0.08);
+}
+
+.settings-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--anya-border);
+}
+
 /* === TITLEBAR DROPDOWN === */
 .titlebar-dropdown {
   position: fixed;
