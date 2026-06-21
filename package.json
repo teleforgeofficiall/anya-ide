@@ -1,6 +1,6 @@
 {
   "name": "anya-ide",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Anya IDE — Pink AI-Powered Desktop IDE for Windows",
   "main": "electron/main.js",
   "scripts": {

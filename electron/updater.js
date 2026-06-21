@@ -8,7 +8,7 @@ const { app } = require('electron')
 var UPDATE_CONFIG = {
   githubOwner: 'teleforgeofficiall',
   githubRepo: 'anya-ide',
-  currentVersion: '1.0.1'
+  currentVersion: '1.0.2'
 }
 
 function UpdateManager(mainWindow) {

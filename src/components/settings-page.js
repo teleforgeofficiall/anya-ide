@@ -10,6 +10,7 @@ function SettingsPage() {
     { id: 'prompt', label: 'Custom Prompt', icon: '✏️' },
     { id: 'appearance', label: 'Appearance', icon: '🎨' },
     { id: 'workspace', label: 'Workspace', icon: '📁' },
+    { id: 'update', label: 'Update', icon: '📦' },
     { id: 'git', label: 'Git', icon: '🔀' },
     { id: 'github', label: 'GitHub', icon: '🐙' },
     { id: 'memory', label: 'Memory', icon: '💾' }
@@ -39,7 +40,7 @@ SettingsPage.prototype.loadConfig = async function() {
     if (!this.config.aiProvider) this.config.aiProvider = {}
     if (!this.config.prompt) this.config.prompt = 'You are Anya, a helpful AI coding assistant. Be concise. Use markdown.'
     if (!this.config.workspace) this.config.workspace = { autoSave: false, formatOnSave: false, tabSize: 2 }
-    if (!this.config.appearance) this.config.appearance = { fontSize: 13, theme: 'light' }
+    if (!this.config.appearance) this.config.appearance = { fontSize: 13, theme: 'light', primaryColor: '#FF69B4', bgColor: '#FFF5EE', textColor: '#2d1c28' }
     if (!this.config.git) this.config.git = { defaultBranch: 'main', autoFetch: false }
     if (!this.config.github) this.config.github = { token: '' }
     if (!this.config.memory) this.config.memory = { contextWindow: 50, saveConversations: true }
@@ -117,6 +118,7 @@ SettingsPage.prototype.renderTabContent = function() {
     case 'models': return this.renderModelsTab()
     case 'prompt': return this.renderPromptTab()
     case 'appearance': return this.renderAppearanceTab()
+    case 'update': return this.renderUpdateTab()
     case 'workspace': return this.renderWorkspaceTab()
     case 'git': return this.renderGitTab()
     case 'github': return this.renderGitHubTab()
@@ -217,11 +219,55 @@ SettingsPage.prototype.renderAppearanceTab = function() {
     '<div class="settings-field">' +
       '<label class="settings-label">Font Family</label>' +
       '<select id="settings-font-family" class="settings-select">' +
-        '<option value="\'Cascadia Code\', \'Fira Code\', monospace">Cascadia Code</option>' +
-        '<option value="\'Fira Code\', monospace" selected>Fira Code</option>' +
-        '<option value="\'JetBrains Mono\', monospace">JetBrains Mono</option>' +
-        '<option value="\'Consolas\', monospace">Consolas</option>' +
+        '<option value="\'Cascadia Code\', \'Fira Code\', monospace"' + (this.config.appearance.fontFamily === "'Cascadia Code', 'Fira Code', monospace" ? ' selected' : '') + '>Cascadia Code</option>' +
+        '<option value="\'Fira Code\', monospace"' + (this.config.appearance.fontFamily === "'Fira Code', monospace" ? ' selected' : '') + '>Fira Code</option>' +
+        '<option value="\'JetBrains Mono\', monospace"' + (this.config.appearance.fontFamily === "'JetBrains Mono', monospace" ? ' selected' : '') + '>JetBrains Mono</option>' +
+        '<option value="\'Consolas\', monospace"' + (this.config.appearance.fontFamily === "'Consolas', monospace" ? ' selected' : '') + '>Consolas</option>' +
       '</select>' +
+    '</div>' +
+    '<h3 class="settings-section-title" style="margin-top:20px">Theme Colors</h3>' +
+    '<p class="settings-section-desc">Customize the pink theme colors.</p>' +
+    '<div class="settings-field">' +
+      '<label class="settings-label">Primary Color</label>' +
+      '<div class="settings-color-row">' +
+        '<input id="settings-color-primary" type="color" class="settings-color-picker" value="' + (this.config.appearance.primaryColor || '#FF69B4') + '" />' +
+        '<input id="settings-color-primary-text" class="settings-input" type="text" value="' + (this.config.appearance.primaryColor || '#FF69B4') + '" style="width:100px;font-family:monospace" />' +
+      '</div>' +
+    '</div>' +
+    '<div class="settings-field">' +
+      '<label class="settings-label">Background</label>' +
+      '<div class="settings-color-row">' +
+        '<input id="settings-color-bg" type="color" class="settings-color-picker" value="' + (this.config.appearance.bgColor || '#FFF5EE') + '" />' +
+        '<input id="settings-color-bg-text" class="settings-input" type="text" value="' + (this.config.appearance.bgColor || '#FFF5EE') + '" style="width:100px;font-family:monospace" />' +
+      '</div>' +
+    '</div>' +
+    '<div class="settings-field">' +
+      '<label class="settings-label">Text Color</label>' +
+      '<div class="settings-color-row">' +
+        '<input id="settings-color-text" type="color" class="settings-color-picker" value="' + (this.config.appearance.textColor || '#2d1c28') + '" />' +
+        '<input id="settings-color-text-text" class="settings-input" type="text" value="' + (this.config.appearance.textColor || '#2d1c28') + '" style="width:100px;font-family:monospace" />' +
+      '</div>' +
+    '</div>' +
+  '</div>'
+}
+
+SettingsPage.prototype.renderUpdateTab = function() {
+  return '<div class="settings-tab-content active">' +
+    '<h3 class="settings-section-title">Update</h3>' +
+    '<p class="settings-section-desc">Check for and install new versions of Anya IDE.</p>' +
+    '<div class="settings-field">' +
+      '<label class="settings-label">Current Version</label>' +
+      '<span style="font-size:15px;font-weight:600;color:var(--anya-primary)">v1.0.2</span>' +
+    '</div>' +
+    '<div class="settings-field" style="margin-top:16px">' +
+      '<button id="settings-check-update" class="settings-btn settings-btn-primary">Check for Updates</button>' +
+      '<span id="settings-update-status" style="margin-left:12px;font-size:12px"></span>' +
+    '</div>' +
+    '<div id="settings-update-progress" class="hidden" style="margin-top:12px">' +
+      '<div class="update-progress-bar" style="margin-bottom:4px">' +
+        '<div class="update-progress-fill" id="settings-update-fill" style="width:0%"></div>' +
+      '</div>' +
+      '<span class="update-progress-text" id="settings-update-text">Downloading...</span>' +
     '</div>' +
   '</div>'
 }
@@ -344,10 +390,51 @@ SettingsPage.prototype.attachTabEvents = function() {
   if (clearBtn) {
     clearBtn.onclick = function() {
       if (confirm('Clear all conversation history?')) {
+        if (window.app && window.app.chat) {
+          window.app.chat.messages = []
+          var el = window.app.chat.messagesEl
+          if (el) el.innerHTML = '<div class="chat-msg assistant"><div class="chat-text">Conversation history cleared.</div></div>'
+        }
         AnyaToast.success('Conversation history cleared')
       }
     }
   }
+
+  var updateCheckBtn = document.getElementById('settings-check-update')
+  if (updateCheckBtn) {
+    updateCheckBtn.onclick = function() {
+      var statusEl = document.getElementById('settings-update-status')
+      statusEl.textContent = 'Checking...'
+      window.anya.update.check().then(function(result) {
+        if (result.success && result.hasUpdate) {
+          window.anya.update.onNotification(function(event, data) {
+            if (event === 'update-available') {
+              statusEl.innerHTML = '<span style="color:var(--anya-success)">✓ Update available: v' + data.latestVersion + '</span>'
+            }
+          })
+          window.anya.update.download && window.anya.update.download()
+        } else if (result.success) {
+          statusEl.innerHTML = '<span style="color:var(--anya-success)">✓ You\'re up to date!</span>'
+        } else {
+          statusEl.innerHTML = '<span style="color:var(--anya-error)">✕ Check failed: ' + (result.error || 'unknown') + '</span>'
+        }
+      })
+    }
+  }
+
+  function syncColorPicker(pickerId, textId) {
+    var picker = document.getElementById(pickerId)
+    var text = document.getElementById(textId)
+    if (picker && text) {
+      picker.oninput = function() { text.value = this.value }
+      text.oninput = function() {
+        if (/^#[0-9a-f]{6}$/i.test(this.value)) picker.value = this.value
+      }
+    }
+  }
+  syncColorPicker('settings-color-primary', 'settings-color-primary-text')
+  syncColorPicker('settings-color-bg', 'settings-color-bg-text')
+  syncColorPicker('settings-color-text', 'settings-color-text-text')
 }
 
 SettingsPage.prototype.updateModelOptions = function(providerId) {
@@ -442,6 +529,18 @@ SettingsPage.prototype.saveConfig = function() {
   var fontSizeEl = document.getElementById('settings-font-size')
   if (fontSizeEl) this.config.appearance.fontSize = parseInt(fontSizeEl.value) || 13
 
+  var fontFamilyEl = document.getElementById('settings-font-family')
+  if (fontFamilyEl) this.config.appearance.fontFamily = fontFamilyEl.value
+
+  var colorPrimaryEl = document.getElementById('settings-color-primary')
+  if (colorPrimaryEl) this.config.appearance.primaryColor = colorPrimaryEl.value
+
+  var colorBgEl = document.getElementById('settings-color-bg')
+  if (colorBgEl) this.config.appearance.bgColor = colorBgEl.value
+
+  var colorTextEl = document.getElementById('settings-color-text')
+  if (colorTextEl) this.config.appearance.textColor = colorTextEl.value
+
   var autoSaveEl = document.getElementById('settings-autosave')
   if (autoSaveEl) this.config.workspace.autoSave = autoSaveEl.checked
 
@@ -475,12 +574,23 @@ SettingsPage.prototype.saveConfig = function() {
   ;(async function() {
     var result = await window.anya.config.write(self.config)
     if (result.success) {
+      self.applyAppearance()
       AnyaToast.success('Settings saved')
       self.close()
     } else {
       AnyaToast.error('Failed to save settings: ' + result.error)
     }
   })()
+}
+
+SettingsPage.prototype.applyAppearance = function() {
+  var app = this.config.appearance || {}
+  var root = document.documentElement
+  if (app.primaryColor) root.style.setProperty('--anya-primary', app.primaryColor)
+  if (app.bgColor) root.style.setProperty('--anya-bg', app.bgColor)
+  if (app.textColor) root.style.setProperty('--anya-text', app.textColor)
+  if (app.fontSize) root.style.setProperty('--font-size', app.fontSize + 'px')
+  AnyaToast.success('Appearance applied')
 }
 
 SettingsPage.prototype.close = function() {

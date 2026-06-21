@@ -20,6 +20,21 @@ function AnyaApp() {
   try { this.showWelcome() } catch(e) { console.error('Welcome init failed:', e) }
   try { this.initMenuListener() } catch(e) { console.error('MenuListener init failed:', e) }
   try { this.initSearchEvents() } catch(e) { console.error('SearchEvents init failed:', e) }
+  try { this.applySavedAppearance() } catch(e) { console.error('Appearance apply failed:', e) }
+}
+
+AnyaApp.prototype.applySavedAppearance = async function() {
+  try {
+    var result = await window.anya.config.read()
+    if (result.success && result.config && result.config.appearance) {
+      var app = result.config.appearance
+      var root = document.documentElement
+      if (app.primaryColor) root.style.setProperty('--anya-primary', app.primaryColor)
+      if (app.bgColor) root.style.setProperty('--anya-bg', app.bgColor)
+      if (app.textColor) root.style.setProperty('--anya-text', app.textColor)
+      if (app.fontSize) root.style.setProperty('--font-size', app.fontSize + 'px')
+    }
+  } catch(e) {}
 }
 
 AnyaApp.prototype.initTerminal = function() {
@@ -129,6 +144,13 @@ AnyaApp.prototype.handleCommand = function(cmd) {
       window.anya.devTools()
       break
     case 'shortcuts': this.showShortcuts(); break
+    case 'check-updates':
+      window.anya.update.manualCheck().then(function(result) {
+        if (result.success && !result.hasUpdate) {
+          AnyaToast.success("You're up to date! ✅")
+        }
+      })
+      break
     case 'settings': this.settings.toggle(this.chat.aiProvider); break
     case 'about': this.showAbout(); break
     case 'exit': window.anya.window.close(); break

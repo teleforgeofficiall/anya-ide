@@ -126,6 +126,8 @@ function buildMenu() {
     {
       label: 'Help',
       submenu: [
+        { label: 'Check for Updates', click: () => mainWindow?.webContents.send('menu-action', 'check-updates') },
+        { type: 'separator' },
         { label: 'About Anya IDE', click: () => mainWindow?.webContents.send('menu-action', 'about') },
         { type: 'separator' },
         { label: 'Keyboard Shortcuts', accelerator: 'CmdOrCtrl+Shift+K', click: () => mainWindow?.webContents.send('menu-action', 'shortcuts') }
@@ -186,6 +188,17 @@ function initUpdater() {
 ipcMain.handle('update-check', async () => {
   if (!updateManager) return { success: false, error: 'Updater not initialized' }
   var result = await updateManager.checkForUpdates()
+  return result
+})
+
+ipcMain.handle('update-manual-check', async () => {
+  if (!updateManager) return { success: false, error: 'Updater not initialized' }
+  var result = await updateManager.checkForUpdates()
+  if (result.success && result.hasUpdate) {
+    updateManager.handleCheckResult(result)
+  } else if (result.success && !result.hasUpdate) {
+    mainWindow?.webContents.send('update-event', { event: 'no-update', data: {} })
+  }
   return result
 })
 

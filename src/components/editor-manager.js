@@ -65,7 +65,7 @@ EditorManager.prototype.createEditor = function() {
     colors: {
       'editor.background': '#FFFFFF',
       'editor.foreground': '#2d1c28',
-      'editor.lineHighlightBackground': 'rgba(255,105,180,0.05)',
+      'editor.lineHighlightBackground': '#FFF0F0',
       'editor.selectionBackground': 'rgba(255,105,180,0.2)',
       'editorCursor.foreground': '#FF69B4',
       'editorLineNumber.foreground': '#d4b8c6',
@@ -111,10 +111,17 @@ EditorManager.prototype.createEditor = function() {
     padding: { top: 8 },
     folding: true,
     guides: { indentation: true, bracketPairs: true },
-    renderLineHighlight: 'line',
+    renderLineHighlight: 'gutter',
     occurrencesHighlight: true,
     formatOnPaste: true
   })
+
+  ;(async function() {
+    try {
+      var cfg = await window.anya.config.read()
+      if (cfg) self.applyConfig(cfg)
+    } catch(e) {}
+  })()
 
   this.editor.onDidChangeModelContent(function() {
     var tabId = self.activeTabId
@@ -253,6 +260,16 @@ EditorManager.prototype.renderTabs = function() {
       self.closeTab(parseInt(el.dataset.tabId))
     }
   })
+}
+
+EditorManager.prototype.applyConfig = function(config) {
+  if (!this.editor) return
+  var opts = {}
+  if (config.fontSize) opts.fontSize = parseInt(config.fontSize)
+  if (config.fontFamily) opts.fontFamily = config.fontFamily
+  if (config.tabSize) opts.tabSize = parseInt(config.tabSize)
+  if (config.wordWrap) opts.wordWrap = config.wordWrap
+  if (Object.keys(opts).length > 0) this.editor.updateOptions(opts)
 }
 
 EditorManager.prototype.getCurrentContent = function() {

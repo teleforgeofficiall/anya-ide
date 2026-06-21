@@ -5,6 +5,7 @@ function ChatPanel(getEditorContext) {
   this.isProcessing = false
   this.isVisible = false
   this.providerConfigured = false
+  this.customPrompt = ''
 
   this.container = document.getElementById('chat-panel')
   this.messagesEl = document.getElementById('chat-messages')
@@ -34,15 +35,23 @@ ChatPanel.prototype.loadConfig = async function() {
   var self = this
   try {
     var result = await window.anya.config.read()
-    if (result.success && result.config && result.config.aiProvider) {
-      var cfg = result.config.aiProvider
-      if (cfg.provider && cfg.apiKey) {
-        self.aiProvider.setProvider(cfg.provider, cfg.apiKey, cfg.model)
-        self.providerConfigured = true
-        var info = self.aiProvider.getCurrentInfo()
-        if (info) {
-          self.addSystemMessage('Welcome! Connected to ' + info.name + ' (' + info.model + ')')
-          return
+    if (result.success && result.config) {
+      var cfg = result.config
+      if (cfg.prompt) self.customPrompt = cfg.prompt
+      if (cfg.aiProvider) {
+        var ap = cfg.aiProvider
+        if (ap.provider && ap.apiKey) {
+          self.aiProvider.setProvider(ap.provider, ap.apiKey, ap.model)
+          self.aiProvider.setConfig({
+            temperature: ap.temperature,
+            maxTokens: ap.maxTokens
+          })
+          self.providerConfigured = true
+          var info = self.aiProvider.getCurrentInfo()
+          if (info) {
+            self.addSystemMessage('Welcome! Connected to ' + info.name + ' (' + info.model + ')')
+            return
+          }
         }
       }
     }
@@ -140,14 +149,17 @@ ChatPanel.prototype.sendMessage = async function() {
   var ctx = this.getEditorContext()
   var fullMessages = []
 
-  if (ctx) {
-    fullMessages.push({
-      role: 'system',
-      content: 'You are Anya, a helpful AI coding assistant. You are helping with code.\n\nCurrent file: ' + (ctx.filePath || 'none') + '\nLanguage: ' + ctx.language + '\n\nSelected code:\n```' + ctx.language + '\n' + (ctx.selectedText || '(none)') + '\n```\n\nFile content:\n```\n' + (ctx.fileContent || '(empty)') + '\n```\n\nBe concise. Use markdown.'
-    })
-  } else {
-    fullMessages.push({ role: 'system', content: 'You are Anya, a helpful AI coding assistant. Be concise.' })
+  var systemPrompt = this.customPrompt || 'You are Anya, a helpful AI coding assistant. Be concise.'
+  if (ctx && ctx.filePath) {
+    systemPrompt += '\n\nCurrent file: ' + ctx.filePath + '\nLanguage: ' + ctx.language
+    if (ctx.selectedText) {
+      systemPrompt += '\n\nSelected code:\n```' + ctx.language + '\n' + ctx.selectedText + '\n```'
+    }
+    if (ctx.fileContent) {
+      systemPrompt += '\n\nFile content:\n```\n' + ctx.fileContent + '\n```'
+    }
   }
+  fullMessages.push({ role: 'system', content: systemPrompt })
 
   for (var i = 0; i < this.messages.length; i++) {
     fullMessages.push({ role: this.messages[i].role, content: this.messages[i].content })

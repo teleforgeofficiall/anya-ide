@@ -50,6 +50,9 @@ UpdateNotification.prototype.handleEvent = function(event, data) {
     case 'update-download-complete':
       this.showDownloadComplete(data)
       break
+    case 'no-update':
+      AnyaToast.success("You're up to date! ✅")
+      break
     case 'update-error':
       this.showError(data)
       break

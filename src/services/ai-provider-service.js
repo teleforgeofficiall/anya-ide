@@ -2,6 +2,8 @@ function AIProviderService() {
   this.provider = null
   this.model = null
   this.apiKey = null
+  this.temperature = 0.7
+  this.maxTokens = 4096
   this.providers = {
     openai: {
       name: 'OpenAI', defaultModel: 'gpt-4o',
@@ -64,6 +66,11 @@ AIProviderService.prototype.setProvider = function(providerId, apiKey, model) {
   this.model = model || cfg.defaultModel
 }
 
+AIProviderService.prototype.setConfig = function(config) {
+  if (config.temperature != null) this.temperature = parseFloat(config.temperature) || 0.7
+  if (config.maxTokens != null) this.maxTokens = parseInt(config.maxTokens) || 4096
+}
+
 AIProviderService.prototype.getProviderInfo = function(providerId) {
   return this.providers[providerId] || null
 }
@@ -85,11 +92,17 @@ AIProviderService.prototype.sendMessage = async function(messages, onStream) {
 }
 
 AIProviderService.prototype._sendOpenAICompatible = async function(messages, onStream, cfg) {
-  var body = JSON.stringify({
+  var bodyObj = {
     model: this.model,
     messages: messages.map(function(m) { return { role: m.role, content: m.content } }),
+    temperature: this.temperature,
+    max_tokens: this.maxTokens,
     stream: !!onStream
-  })
+  }
+  if (this.provider === 'openrouter') {
+    delete bodyObj.temperature
+  }
+  var body = JSON.stringify(bodyObj)
 
   var headers = {
     'Content-Type': 'application/json',
@@ -115,7 +128,8 @@ AIProviderService.prototype._sendAnthropic = async function(messages, onStream, 
   var body = {
     model: this.model,
     messages: chatMsgs,
-    max_tokens: 4096,
+    max_tokens: this.maxTokens,
+    temperature: this.temperature,
     stream: !!onStream
   }
   if (systemMsg) body.system = systemMsg
@@ -141,12 +155,13 @@ AIProviderService.prototype._sendGoogle = async function(messages, onStream, cfg
     chatMsgs.push({ role: messages[i].role === 'assistant' ? 'model' : 'user', parts: [{ text: messages[i].content }] })
   }
 
-  var url = cfg.endpoint + '/' + this.model + ':streamGenerateContent?key=' + this.apiKey + '&alt=sse'
+  var streamUrl = cfg.endpoint + '/' + this.model + ':streamGenerateContent?key=' + this.apiKey + '&alt=sse'
+  var nonStreamUrl = cfg.endpoint + '/' + this.model + ':generateContent?key=' + this.apiKey
   var body = JSON.stringify({ contents: chatMsgs })
 
-  if (onStream) return this._streamGoogle(url, body, onStream)
+  if (onStream) return this._streamGoogle(streamUrl, body, onStream)
 
-  var res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body })
+  var res = await fetch(nonStreamUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body })
   if (!res.ok) throw new Error('API error: ' + res.status)
   var data = await res.json()
   return data.candidates && data.candidates[0] && data.candidates[0].content ? data.candidates[0].content.parts[0].text : ''

@@ -66,6 +66,7 @@ contextBridge.exposeInMainWorld('anya', {
     check: () => ipcRenderer.invoke('update-check'),
     download: () => ipcRenderer.invoke('update-download'),
     install: () => ipcRenderer.invoke('update-install'),
+    manualCheck: () => ipcRenderer.invoke('update-manual-check'),
     pause: () => ipcRenderer.invoke('update-pause'),
     resume: () => ipcRenderer.invoke('update-resume'),
     cancel: () => ipcRenderer.invoke('update-cancel'),
