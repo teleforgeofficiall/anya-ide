@@ -1,0 +1,141 @@
+#app {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+#titlebar {
+  height: var(--titlebar-height);
+  background: var(--titlebar-bg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  -webkit-app-region: drag;
+  user-select: none;
+  flex-shrink: 0;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--anya-border);
+}
+
+#main-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+#sidebar {
+  display: flex;
+  width: calc(var(--sidebar-tab-width) + var(--sidebar-width));
+  flex-shrink: 0;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--anya-border);
+  transition: width 0.2s ease;
+}
+
+#sidebar.collapsed {
+  width: var(--sidebar-tab-width);
+}
+
+#sidebar.collapsed #sidebar-content {
+  display: none;
+}
+
+#sidebar-tabs {
+  width: var(--sidebar-tab-width);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--anya-bg);
+  border-right: 1px solid var(--anya-border);
+  padding-top: 4px;
+}
+
+#sidebar-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sidebar-panel {
+  display: none;
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.sidebar-panel.active {
+  display: block;
+}
+
+#editor-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 200px;
+  position: relative;
+}
+
+#editor-tabs {
+  height: var(--editor-tab-height);
+  background: var(--editor-tab-bg);
+  display: flex;
+  align-items: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--anya-border);
+}
+
+#editor-tabs::-webkit-scrollbar { height: 3px; }
+
+#editor-container {
+  flex: 1;
+  overflow: hidden;
+  background: var(--editor-bg);
+}
+
+#chat-panel {
+  width: var(--chat-width);
+  flex-shrink: 0;
+  background: var(--chat-bg);
+  border-left: 1px solid var(--anya-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+
+#chat-panel.hidden {
+  display: none;
+}
+
+#terminal-panel {
+  height: var(--terminal-height);
+  flex-shrink: 0;
+  background: var(--terminal-bg);
+  border-top: 1px solid var(--anya-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+#terminal-panel.hidden {
+  display: none;
+}
+
+#statusbar {
+  height: var(--statusbar-height);
+  background: var(--statusbar-bg);
+  flex-shrink: 0;
+  border-top: 1px solid var(--anya-border);
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  font-size: var(--font-size-small);
+}

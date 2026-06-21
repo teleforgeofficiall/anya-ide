@@ -1,0 +1,75 @@
+:root {
+  --anya-bg: #FFF5EE;
+  --anya-bg-secondary: #FFF0E8;
+  --anya-surface: #FFEEE6;
+  --anya-surface-hover: #FFE8DE;
+  --anya-primary: #FF69B4;
+  --anya-primary-hover: #FF4DA6;
+  --anya-secondary: #E84393;
+  --anya-accent: #FFB6C1;
+  --anya-accent-light: #FFD1DC;
+  --anya-text: #2d1c28;
+  --anya-text-secondary: #5a3e4e;
+  --anya-text-muted: #9a7b8a;
+  --anya-border: #F5D5CC;
+  --anya-border-light: #EECCC2;
+  --anya-selection: rgba(255, 105, 180, 0.2);
+  --anya-success: #4CAF50;
+  --anya-warning: #FF9800;
+  --anya-error: #F44336;
+  --anya-info: #2196F3;
+
+  --titlebar-bg: #FFECEE;
+  --titlebar-text: #FF69B4;
+  --titlebar-height: 36px;
+
+  --sidebar-width: 260px;
+  --sidebar-bg: #FFF5EE;
+  --sidebar-tab-width: 48px;
+
+  --editor-bg: white;
+  --editor-tab-bg: #FFECEE;
+  --editor-tab-active-bg: white;
+  --editor-tab-height: 36px;
+
+  --terminal-bg: #1a1019;
+  --terminal-height: 250px;
+  --terminal-tab-bg: #1a1019;
+
+  --chat-width: 350px;
+  --chat-bg: #FFF5EE;
+
+  --statusbar-bg: #FFECEE;
+  --statusbar-height: 24px;
+
+  --font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+  --font-size: 13px;
+  --font-size-small: 12px;
+  --font-size-mono: 13px;
+
+  --scrollbar-width: 8px;
+  --radius-sm: 3px;
+  --radius-md: 6px;
+}
+
+::-webkit-scrollbar { width: var(--scrollbar-width); height: var(--scrollbar-width); }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--anya-border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--anya-border-light); }
+
+::selection { background: var(--anya-selection); }
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font-family);
+  font-size: var(--font-size);
+  color: var(--anya-text);
+  background: var(--anya-bg);
+}
+
+.hidden { display: none !important; }
