@@ -34,7 +34,9 @@
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "installerIcon": "assets/icon.ico",
-      "uninstallerIcon": "assets/icon.ico"
+      "uninstallerIcon": "assets/icon.ico",
+      "include": "installer.nsh",
+      "deleteAppDataOnUninstall": false
     }
   },
   "keywords": [

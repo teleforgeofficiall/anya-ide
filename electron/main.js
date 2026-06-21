@@ -9,6 +9,12 @@ function getConfigPath() {
   return path.join(app.getPath('userData'), 'anya-ide-config.json')
 }
 
+const gotTheLock = app.requestSingleInstanceLock()
+if (!gotTheLock) {
+  dialog.showErrorBox('Anya IDE is already running', 'Another instance of Anya IDE is already running.\n\nPlease close it first and try again.')
+  app.quit()
+}
+
 let mainWindow = null
 let terminalProcesses = new Map()
 let terminalCounter = 0

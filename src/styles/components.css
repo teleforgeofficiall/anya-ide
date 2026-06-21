@@ -476,7 +476,7 @@
 
 .status-item:hover { color: var(--anya-text-secondary); }
 .status-item .status-icon { font-size: 11px; }
-.status-item .status-primary { color: var(--anya-primary); }
+.status-item .status-primary { color: #DAA520; }
 .status-item .status-error { color: var(--anya-error); }
 
 /* === COMMAND PALETTE === */

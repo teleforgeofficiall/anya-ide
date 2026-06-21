@@ -26,7 +26,7 @@ StatusBar.prototype.render = function() {
 
   this.container.innerHTML =
     '<div class="status-left">' +
-      '<span class="status-item"><span class="status-icon status-primary">♥</span><span>Anya</span></span>' +
+      '<span class="status-item"><span class="status-icon status-primary">♥</span><span class="status-primary">Anya</span></span>' +
       '<span class="status-item"><span>' + AnyaHelpers.escapeHtml(info.language) + '</span></span>' +
       aiHtml +
     '</div>' +
