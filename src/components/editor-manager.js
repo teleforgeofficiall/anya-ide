@@ -56,7 +56,7 @@ EditorManager.prototype.createEditor = function() {
       { token: 'keyword', foreground: 'E84393' },
       { token: 'string', foreground: 'FF69B4' },
       { token: 'number', foreground: 'FF9800' },
-      { token: 'comment', foreground: '9a7b8a', fontStyle: 'italic' },
+      { token: 'comment', foreground: '8a7a6a', fontStyle: 'italic' },
       { token: 'type', foreground: 'E84393' },
       { token: 'function', foreground: 'FF69B4' },
       { token: 'variable', foreground: '2d1c28' },
