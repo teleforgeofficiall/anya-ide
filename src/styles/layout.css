@@ -107,11 +107,14 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transition: transform 0.25s ease, opacity 0.25s ease;
+  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease;
 }
 
-#chat-panel.hidden {
-  display: none;
+#chat-panel.chat-collapsed {
+  width: 0;
+  opacity: 0;
+  overflow: hidden;
+  border-left: none;
 }
 
 #terminal-panel {

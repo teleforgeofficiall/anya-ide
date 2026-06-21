@@ -38,12 +38,20 @@
       </div>
       <div id="chat-panel" class="hidden">
         <div id="chat-header">
-          <span>AI Chat</span>
-          <button id="chat-close" title="Close">✕</button>
+          <div id="chat-header-left">
+            <select id="chat-model-select" title="Select model"></select>
+            <button id="chat-new-session" title="New Chat">✚</button>
+          </div>
+          <div id="chat-header-right">
+            <button id="chat-export" title="Export Chat">📋</button>
+            <button id="chat-sessions-btn" title="Chat History">📜</button>
+            <button id="chat-close" title="Close">✕</button>
+          </div>
         </div>
+        <div id="chat-sessions-panel" class="hidden"></div>
         <div id="chat-messages"></div>
         <div id="chat-input-area">
-          <textarea id="chat-input" placeholder="Ask AI anything..." rows="3"></textarea>
+          <textarea id="chat-input" placeholder="Ask AI anything... (Enter to send, Shift+Enter for new line)" rows="2"></textarea>
           <button id="chat-send">Send</button>
         </div>
       </div>

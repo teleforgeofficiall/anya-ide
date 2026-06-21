@@ -62,6 +62,13 @@ contextBridge.exposeInMainWorld('anya', {
 
   devTools: () => ipcRenderer.invoke('toggle-dev-tools'),
 
+  ai: {
+    proxy: (opts) => ipcRenderer.invoke('ai-proxy', opts),
+    abort: (requestId) => ipcRenderer.invoke('ai-abort', requestId),
+    fetchOllamaModels: () => ipcRenderer.invoke('ai-fetch-ollama-models'),
+    fetchOpenRouterModels: (apiKey) => ipcRenderer.invoke('ai-fetch-openrouter-models', apiKey)
+  },
+
   update: {
     check: () => ipcRenderer.invoke('update-check'),
     download: () => ipcRenderer.invoke('update-download'),

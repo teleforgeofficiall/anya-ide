@@ -491,6 +491,80 @@ ipcMain.handle('platform', () => process.platform)
 ipcMain.handle('is-maximized', () => mainWindow?.isMaximized() || false)
 ipcMain.handle('toggle-dev-tools', () => mainWindow?.webContents.toggleDevTools())
 
+// AI Proxy — all fetch goes through main process (bypasses CSP)
+ipcMain.handle('ai-proxy', async (event, opts) => {
+  try {
+    var url = opts.url
+    var method = opts.method || 'GET'
+    var headers = opts.headers || {}
+    var body = opts.body
+    var controller = new AbortController()
+
+    // Store controller so renderer can abort
+    if (!global.aiControllers) global.aiControllers = new Map()
+    if (opts.requestId) global.aiControllers.set(opts.requestId, controller)
+
+    var fetchOpts = {
+      method: method,
+      headers: headers,
+      signal: controller.signal
+    }
+    if (body) fetchOpts.body = body
+
+    var res = await fetch(url, fetchOpts)
+    var text = await res.text()
+
+    if (opts.requestId) global.aiControllers.delete(opts.requestId)
+
+    return {
+      success: true,
+      status: res.status,
+      headers: Object.fromEntries(res.headers.entries()),
+      body: text
+    }
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      return { success: false, aborted: true, error: 'Request aborted' }
+    }
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('ai-abort', (event, requestId) => {
+  if (global.aiControllers && global.aiControllers.has(requestId)) {
+    global.aiControllers.get(requestId).abort()
+    global.aiControllers.delete(requestId)
+    return { success: true }
+  }
+  return { success: false, error: 'No active request found' }
+})
+
+// Fetch Ollama local models
+ipcMain.handle('ai-fetch-ollama-models', async () => {
+  try {
+    var res = await fetch('http://localhost:11434/api/tags')
+    if (!res.ok) return { success: false, error: 'Ollama not running (status ' + res.status + ')' }
+    var data = await res.json()
+    return { success: true, models: data.models || [] }
+  } catch (err) {
+    return { success: false, error: 'Cannot connect to Ollama. Is it running?' }
+  }
+})
+
+// Fetch OpenRouter models
+ipcMain.handle('ai-fetch-openrouter-models', async (event, apiKey) => {
+  try {
+    var headers = {}
+    if (apiKey) headers['Authorization'] = 'Bearer ' + apiKey
+    var res = await fetch('https://openrouter.ai/api/v1/models', { headers: headers })
+    if (!res.ok) return { success: false, error: 'OpenRouter API error: ' + res.status }
+    var data = await res.json()
+    return { success: true, models: data.data || [] }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
 function gitExec(args, cwd) {
   return new Promise((resolve) => {
     const proc = spawn('git', args, { cwd })

@@ -36,8 +36,10 @@
   --terminal-height: 250px;
   --terminal-tab-bg: #1a1019;
 
-  --chat-width: 350px;
+  --chat-width: 400px;
   --chat-bg: #FFF5EE;
+  --chat-accent: #FFB6C1;
+  --chat-radius: 10px;
 
   --statusbar-bg: #FFECEE;
   --statusbar-height: 24px;

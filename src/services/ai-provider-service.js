@@ -4,6 +4,8 @@ function AIProviderService() {
   this.apiKey = null
   this.temperature = 0.7
   this.maxTokens = 4096
+  this.contextWindow = 50
+  this.requestCounter = 0
   this.providers = {
     openai: {
       name: 'OpenAI', defaultModel: 'gpt-4o',
@@ -69,6 +71,7 @@ AIProviderService.prototype.setProvider = function(providerId, apiKey, model) {
 AIProviderService.prototype.setConfig = function(config) {
   if (config.temperature != null) this.temperature = parseFloat(config.temperature) || 0.7
   if (config.maxTokens != null) this.maxTokens = parseInt(config.maxTokens) || 4096
+  if (config.contextWindow != null) this.contextWindow = parseInt(config.contextWindow) || 50
 }
 
 AIProviderService.prototype.getProviderInfo = function(providerId) {
@@ -81,17 +84,133 @@ AIProviderService.prototype.getCurrentInfo = function() {
   return { id: this.provider, name: cfg.name, model: this.model }
 }
 
-AIProviderService.prototype.sendMessage = async function(messages, onStream) {
-  if (!this.provider) throw new Error('No AI provider configured')
-  var cfg = this.providers[this.provider]
+AIProviderService.prototype._fetch = async function(url, opts) {
+  if (typeof window.anya !== 'undefined' && window.anya.ai && window.anya.ai.proxy) {
+    var requestId = 'ai-' + (++this.requestCounter)
+    var proxyOpts = {
+      url: url,
+      method: opts.method || 'GET',
+      headers: opts.headers || {},
+      requestId: requestId
+    }
+    if (opts.body) proxyOpts.body = opts.body
+    if (opts.signal) {
+      opts.signal.addEventListener('abort', function() {
+        window.anya.ai.abort(requestId)
+      })
+    }
 
-  if (this.provider === 'ollama') return this._sendOllama(messages, onStream, cfg)
-  if (this.provider === 'anthropic') return this._sendAnthropic(messages, onStream, cfg)
-  if (this.provider === 'google') return this._sendGoogle(messages, onStream, cfg)
-  return this._sendOpenAICompatible(messages, onStream, cfg)
+    var result = await window.anya.ai.proxy(proxyOpts)
+    if (!result.success) {
+      if (result.aborted) throw new DOMException('The user aborted a request.', 'AbortError')
+      throw new Error(result.error || 'Request failed')
+    }
+    return {
+      ok: result.status >= 200 && result.status < 300,
+      status: result.status,
+      headers: result.headers,
+      body: result.body,
+      text: function() { return Promise.resolve(result.body) },
+      json: function() { try { return Promise.resolve(JSON.parse(result.body)) } catch(e) { return Promise.reject(e) } }
+    }
+  }
+  return fetch(url, opts)
 }
 
-AIProviderService.prototype._sendOpenAICompatible = async function(messages, onStream, cfg) {
+AIProviderService.prototype._fetchStream = async function(url, opts, onChunk, signal) {
+  if (typeof window.anya !== 'undefined' && window.anya.ai && window.anya.ai.proxy) {
+    var requestId = 'ai-' + (++this.requestCounter)
+    var proxyOpts = {
+      url: url,
+      method: opts.method || 'POST',
+      headers: opts.headers || {},
+      body: opts.body,
+      requestId: requestId,
+      stream: true
+    }
+    if (signal) {
+      signal.addEventListener('abort', function() {
+        window.anya.ai.abort(requestId)
+      })
+    }
+
+    var result = await window.anya.ai.proxy(proxyOpts)
+    if (!result.success) {
+      if (result.aborted) throw new DOMException('The user aborted a request.', 'AbortError')
+      throw new Error(result.error || 'Request failed')
+    }
+
+    // When proxy is used, the response comes as a single body
+    // Parse SSE/NDJSON from it
+    var body = result.body
+    var lines = body.split('\n')
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim()
+      if (!line) continue
+      if (line.startsWith('data: ')) line = line.slice(6)
+      try {
+        var d = JSON.parse(line)
+        onChunk(d)
+      } catch(e) {}
+    }
+    return result.body
+  }
+  return this._fetchStreamDirect(url, opts, onChunk)
+}
+
+AIProviderService.prototype._fetchStreamDirect = async function(url, opts, onChunk) {
+  var res = await fetch(url, opts)
+  if (!res.ok) {
+    var errText = await res.text().catch(function(){return ''})
+    throw new Error('API error: ' + res.status + (errText ? ' - ' + errText.slice(0, 100) : ''))
+  }
+  var reader = res.body.getReader()
+  var decoder = new TextDecoder()
+  var buffer = ''
+
+  while (true) {
+    var readResult = await reader.read()
+    if (readResult.done) break
+    buffer += decoder.decode(readResult.value, { stream: true })
+    var lns = buffer.split('\n')
+    buffer = lns.pop() || ''
+    for (var j = 0; j < lns.length; j++) {
+      var t = lns[j].trim()
+      if (!t) continue
+      if (t.startsWith('data: ')) t = t.slice(6)
+      try {
+        var d = JSON.parse(t)
+        onChunk(d)
+      } catch(e) {
+        // Partial JSON, wait for more data
+      }
+    }
+  }
+}
+
+AIProviderService.prototype.sendMessage = async function(messages, onStream, signal) {
+  if (!this.provider) throw new Error('No AI provider configured')
+
+  // Enforce context window
+  if (this.contextWindow > 0 && messages.length > this.contextWindow + 1) {
+    var systemMsgs = messages.filter(function(m) { return m.role === 'system' })
+    var chatMsgs = messages.filter(function(m) { return m.role !== 'system' })
+    var keep = this.contextWindow - systemMsgs.length
+    if (keep > 0 && chatMsgs.length > keep) {
+      chatMsgs = chatMsgs.slice(-keep)
+    }
+    messages = systemMsgs.concat(chatMsgs)
+  }
+
+  var cfg = this.providers[this.provider]
+
+  if (this.provider === 'ollama') return this._sendOllama(messages, onStream, cfg, signal)
+  if (this.provider === 'anthropic') return this._sendAnthropic(messages, onStream, cfg, signal)
+  if (this.provider === 'google') return this._sendGoogle(messages, onStream, cfg, signal)
+  return this._sendOpenAICompatible(messages, onStream, cfg, signal)
+}
+
+AIProviderService.prototype._sendOpenAICompatible = async function(messages, onStream, cfg, signal) {
   var bodyObj = {
     model: this.model,
     messages: messages.map(function(m) { return { role: m.role, content: m.content } }),
@@ -109,15 +228,22 @@ AIProviderService.prototype._sendOpenAICompatible = async function(messages, onS
     'Authorization': 'Bearer ' + this.apiKey
   }
 
-  if (onStream) return this._streamSSE(cfg.endpoint, headers, body, onStream)
+  if (onStream) {
+    return this._streamSSE(cfg.endpoint, headers, body, onStream, signal)
+  }
 
-  var res = await fetch(cfg.endpoint, { method: 'POST', headers: headers, body: body })
-  if (!res.ok) throw new Error('API error: ' + res.status)
+  var res = await this._fetch(cfg.endpoint, {
+    method: 'POST', headers: headers, body: body, signal: signal
+  })
+  if (!res.ok) {
+    var errText = await res.text().catch(function(){return ''})
+    throw new Error('API error: ' + res.status + (errText ? ' - ' + errText.slice(0, 200) : ''))
+  }
   var data = await res.json()
   return data.choices && data.choices[0] && data.choices[0].message ? data.choices[0].message.content : ''
 }
 
-AIProviderService.prototype._sendAnthropic = async function(messages, onStream, cfg) {
+AIProviderService.prototype._sendAnthropic = async function(messages, onStream, cfg, signal) {
   var systemMsg = null
   var chatMsgs = []
   for (var i = 0; i < messages.length; i++) {
@@ -140,34 +266,53 @@ AIProviderService.prototype._sendAnthropic = async function(messages, onStream, 
     'anthropic-version': '2023-06-01'
   }
 
-  if (onStream) return this._streamAnthropic(cfg.endpoint, headers, JSON.stringify(body), onStream)
+  if (onStream) return this._streamAnthropic(cfg.endpoint, headers, JSON.stringify(body), onStream, signal)
 
-  var res = await fetch(cfg.endpoint, { method: 'POST', headers: headers, body: JSON.stringify(body) })
-  if (!res.ok) throw new Error('API error: ' + res.status)
+  var res = await this._fetch(cfg.endpoint, {
+    method: 'POST', headers: headers, body: JSON.stringify(body), signal: signal
+  })
+  if (!res.ok) {
+    var errText = await res.text().catch(function(){return ''})
+    throw new Error('API error: ' + res.status + (errText ? ' - ' + errText.slice(0, 200) : ''))
+  }
   var data = await res.json()
   return data.content && data.content[0] ? data.content[0].text : ''
 }
 
-AIProviderService.prototype._sendGoogle = async function(messages, onStream, cfg) {
+AIProviderService.prototype._sendGoogle = async function(messages, onStream, cfg, signal) {
+  var systemInstruction = null
   var chatMsgs = []
   for (var i = 0; i < messages.length; i++) {
-    if (messages[i].role === 'system') continue
+    if (messages[i].role === 'system') {
+      systemInstruction = messages[i].content
+      continue
+    }
     chatMsgs.push({ role: messages[i].role === 'assistant' ? 'model' : 'user', parts: [{ text: messages[i].content }] })
   }
 
   var streamUrl = cfg.endpoint + '/' + this.model + ':streamGenerateContent?key=' + this.apiKey + '&alt=sse'
   var nonStreamUrl = cfg.endpoint + '/' + this.model + ':generateContent?key=' + this.apiKey
-  var body = JSON.stringify({ contents: chatMsgs })
 
-  if (onStream) return this._streamGoogle(streamUrl, body, onStream)
+  var bodyObj = { contents: chatMsgs }
+  if (systemInstruction) {
+    bodyObj.systemInstruction = { parts: [{ text: systemInstruction }] }
+  }
+  var body = JSON.stringify(bodyObj)
 
-  var res = await fetch(nonStreamUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body })
-  if (!res.ok) throw new Error('API error: ' + res.status)
+  if (onStream) return this._streamGoogle(streamUrl, body, onStream, signal)
+
+  var res = await this._fetch(nonStreamUrl, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, signal: signal
+  })
+  if (!res.ok) {
+    var errText = await res.text().catch(function(){return ''})
+    throw new Error('API error: ' + res.status + (errText ? ' - ' + errText.slice(0, 200) : ''))
+  }
   var data = await res.json()
   return data.candidates && data.candidates[0] && data.candidates[0].content ? data.candidates[0].content.parts[0].text : ''
 }
 
-AIProviderService.prototype._sendOllama = async function(messages, onStream, cfg) {
+AIProviderService.prototype._sendOllama = async function(messages, onStream, cfg, signal) {
   var body = JSON.stringify({
     model: this.model,
     messages: messages.map(function(m) { return { role: m.role, content: m.content } }),
@@ -175,137 +320,73 @@ AIProviderService.prototype._sendOllama = async function(messages, onStream, cfg
   })
 
   if (onStream) {
-    var res = await fetch(cfg.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body })
-    if (!res.ok) throw new Error('Ollama error: ' + res.status)
-    var reader = res.body.getReader()
-    var decoder = new TextDecoder()
-    var full = ''
-
-    while (true) {
-      var result = await reader.read()
-      if (result.done) break
-      var lines = decoder.decode(result.value).split('\n').filter(function(l) { return l.trim() })
-      for (var j = 0; j < lines.length; j++) {
-        try {
-          var d = JSON.parse(lines[j])
-          if (d.message && d.message.content) {
-            full += d.message.content
-            onStream(full)
-          }
-        } catch(e) {}
-      }
-    }
-    return full
+    return this._streamOllama(cfg.endpoint, body, onStream, signal)
   }
 
-  var res = await fetch(cfg.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: this.model, messages: messages, stream: false }) })
-  if (!res.ok) throw new Error('Ollama error: ' + res.status)
+  var res = await this._fetch(cfg.endpoint, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+      model: this.model, messages: messages, stream: false
+    }), signal: signal
+  })
+  if (!res.ok) {
+    var errText = await res.text().catch(function(){return ''})
+    throw new Error('Ollama error: ' + res.status + (errText ? ' - ' + errText.slice(0, 200) : ''))
+  }
   var data = await res.json()
   return data.message ? data.message.content : ''
 }
 
-AIProviderService.prototype._streamSSE = async function(url, headers, body, onStream) {
-  var res = await fetch(url, { method: 'POST', headers: headers, body: body })
-  if (!res.ok) throw new Error('API error: ' + res.status)
-
-  var reader = res.body.getReader()
-  var decoder = new TextDecoder()
+AIProviderService.prototype._streamSSE = async function(url, headers, body, onStream, signal) {
   var full = ''
-  var buffer = ''
-
-  while (true) {
-    var result = await reader.read()
-    if (result.done) break
-
-    buffer += decoder.decode(result.value, { stream: true })
-    var lines = buffer.split('\n')
-    buffer = lines.pop() || ''
-
-    for (var i = 0; i < lines.length; i++) {
-      var t = lines[i].trim()
-      if (!t || !t.startsWith('data: ')) continue
-      var json = t.slice(6)
-      if (json === '[DONE]') continue
-      try {
-        var d = JSON.parse(json)
-        var delta = ''
-        if (d.choices && d.choices[0]) {
-          delta = d.choices[0].delta ? (d.choices[0].delta.content || '') : (d.choices[0].text || '')
-        }
-        if (delta) {
-          full += delta
-          onStream(full)
-        }
-      } catch(e) {}
+  var handler = function(d) {
+    var delta = ''
+    if (d.choices && d.choices[0]) {
+      delta = d.choices[0].delta ? (d.choices[0].delta.content || '') : (d.choices[0].text || '')
+    }
+    if (delta) {
+      full += delta
+      onStream(full)
     }
   }
+  await this._fetchStream(url, { method: 'POST', headers: headers, body: body, signal: signal }, handler, signal)
   return full
 }
 
-AIProviderService.prototype._streamAnthropic = async function(url, headers, body, onStream) {
-  var res = await fetch(url, { method: 'POST', headers: headers, body: body })
-  if (!res.ok) throw new Error('API error: ' + res.status)
-
-  var reader = res.body.getReader()
-  var decoder = new TextDecoder()
+AIProviderService.prototype._streamAnthropic = async function(url, headers, body, onStream, signal) {
   var full = ''
-  var buffer = ''
-
-  while (true) {
-    var result = await reader.read()
-    if (result.done) break
-
-    buffer += decoder.decode(result.value, { stream: true })
-    var lines = buffer.split('\n')
-    buffer = lines.pop() || ''
-
-    for (var i = 0; i < lines.length; i++) {
-      var t = lines[i].trim()
-      if (!t.startsWith('data: ')) continue
-      try {
-        var d = JSON.parse(t.slice(6))
-        if (d.type === 'content_block_delta' && d.delta && d.delta.text) {
-          full += d.delta.text
-          onStream(full)
-        }
-      } catch(e) {}
+  var handler = function(d) {
+    if (d.type === 'content_block_delta' && d.delta && d.delta.text) {
+      full += d.delta.text
+      onStream(full)
     }
   }
+  await this._fetchStream(url, { method: 'POST', headers: headers, body: body, signal: signal }, handler, signal)
   return full
 }
 
-AIProviderService.prototype._streamGoogle = async function(url, body, onStream) {
-  var res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body })
-  if (!res.ok) throw new Error('API error: ' + res.status)
-
-  var reader = res.body.getReader()
-  var decoder = new TextDecoder()
+AIProviderService.prototype._streamGoogle = async function(url, body, onStream, signal) {
   var full = ''
-  var buffer = ''
-
-  while (true) {
-    var result = await reader.read()
-    if (result.done) break
-
-    buffer += decoder.decode(result.value, { stream: true })
-    var lines = buffer.split('\n')
-    buffer = lines.pop() || ''
-
-    for (var i = 0; i < lines.length; i++) {
-      var t = lines[i].trim()
-      if (!t.startsWith('data: ')) continue
-      try {
-        var d = JSON.parse(t.slice(6))
-        var text = ''
-        if (d.candidates && d.candidates[0] && d.candidates[0].content) {
-          text = d.candidates[0].content.parts ? d.candidates[0].content.parts[0].text : ''
-        }
-        if (text) {
-          full += text
-          onStream(full)
-        }
-      } catch(e) {}
+  var handler = function(d) {
+    if (d.candidates && d.candidates[0] && d.candidates[0].content) {
+      var text = d.candidates[0].content.parts ? d.candidates[0].content.parts[0].text : ''
+      if (text) {
+        full += text
+        onStream(full)
+      }
     }
   }
+  await this._fetchStream(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, signal: signal }, handler, signal)
+  return full
+}
+
+AIProviderService.prototype._streamOllama = async function(url, body, onStream, signal) {
+  var full = ''
+  var handler = function(d) {
+    if (d.message && d.message.content) {
+      full += d.message.content
+      onStream(full)
+    }
+  }
+  await this._fetchStream(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, signal: signal }, handler, signal)
   return full
 }

@@ -159,6 +159,7 @@ SettingsPage.prototype.renderProvidersTab = function() {
     '<div class="settings-field">' +
       '<label class="settings-label">Model</label>' +
       '<select id="settings-model" class="settings-select"></select>' +
+      '<input id="settings-model-custom" class="settings-input" type="text" placeholder="Custom model name..." style="margin-top:6px;display:none" />' +
     '</div>' +
 
     '<div class="settings-field">' +
@@ -378,9 +379,21 @@ SettingsPage.prototype.attachTabEvents = function() {
   var providerSelect = document.getElementById('settings-provider')
   if (providerSelect) {
     providerSelect.onchange = function() {
-      self.updateModelOptions(providerSelect.value)
+      var val = providerSelect.value
+      self.updateModelOptions(val)
+      // Show/hide API key field based on provider
+      var keyField = document.getElementById('settings-key-field')
+      if (keyField) {
+        var providers = self.aiProviderService ? self.aiProviderService.providers : {}
+        var cfg = providers[val]
+        if (cfg && cfg.local) {
+          keyField.style.display = 'none'
+        } else {
+          keyField.style.display = 'block'
+        }
+      }
     }
-    self.updateModelOptions(providerSelect.value)
+    providerSelect.dispatchEvent(new Event('change'))
   }
 
   var testBtn = document.getElementById('settings-test-connection')
@@ -440,12 +453,15 @@ SettingsPage.prototype.attachTabEvents = function() {
 }
 
 SettingsPage.prototype.updateModelOptions = function(providerId) {
+  var self = this
   var modelSelect = document.getElementById('settings-model')
+  var customInput = document.getElementById('settings-model-custom')
   if (!modelSelect) return
   var providers = this.aiProviderService ? this.aiProviderService.providers : {}
   var cfg = providers[providerId]
   if (!cfg) {
     modelSelect.innerHTML = '<option value="">Select a provider first</option>'
+    if (customInput) customInput.style.display = 'none'
     return
   }
 
@@ -456,21 +472,96 @@ SettingsPage.prototype.updateModelOptions = function(providerId) {
       html += '<option value="' + cfg.models[i] + '"' + selected + '>' + cfg.models[i] + '</option>'
     }
   }
-  html += '<option value="__custom__"' + (this.config.aiProvider.model && cfg.models.indexOf(this.config.aiProvider.model) === -1 ? ' selected' : '') + '>Custom...</option>'
-  modelSelect.innerHTML = html
+
+  var isCustom = this.config.aiProvider.model && cfg.models.indexOf(this.config.aiProvider.model) === -1
+
+  if (providerId === 'ollama') {
+    html = '<option value="" disabled>Loading local models...</option>'
+    modelSelect.innerHTML = html
+    if (customInput) customInput.style.display = 'none'
+
+    window.anya.ai.fetchOllamaModels().then(function(result) {
+      if (result.success && result.models.length > 0) {
+        var h = ''
+        for (var i = 0; i < result.models.length; i++) {
+          var name = result.models[i].name
+          var size = result.models[i].size ? '(' + self._formatSize(result.models[i].size) + ')' : ''
+          var sel = name === self.config.aiProvider.model ? ' selected' : ''
+          h += '<option value="' + name + '"' + sel + '>' + AnyaHelpers.escapeHtml(name + ' ' + size) + '</option>'
+        }
+        modelSelect.innerHTML = h
+      } else {
+        modelSelect.innerHTML = '<option value="" disabled>No models found — run ollama pull &lt;model&gt;</option>'
+      }
+      if (customInput) customInput.style.display = 'block'
+    }).catch(function() {
+      modelSelect.innerHTML = '<option value="" disabled>Ollama not running</option>'
+      if (customInput) customInput.style.display = 'block'
+    })
+  } else if (providerId === 'openrouter') {
+    html = '<option value="" disabled>Loading OpenRouter models...</option>'
+    modelSelect.innerHTML = html
+    if (customInput) customInput.style.display = 'none'
+
+    var apiKey = document.getElementById('settings-api-key').value
+    window.anya.ai.fetchOpenRouterModels(apiKey || undefined).then(function(result) {
+      if (result.success && result.models.length > 0) {
+        var h = ''
+        // Show top 50 popular models
+        var models = result.models.slice(0, 50)
+        for (var i = 0; i < models.length; i++) {
+          var name = models[i].id
+          var ctx = models[i].context_length ? ' (' + self._formatTokens(models[i].context_length) + ' ctx)' : ''
+          var sel = name === self.config.aiProvider.model ? ' selected' : ''
+          h += '<option value="' + name + '"' + sel + '>' + AnyaHelpers.escapeHtml(name + ctx) + '</option>'
+        }
+        modelSelect.innerHTML = h
+      } else {
+        modelSelect.innerHTML = '<option value="" disabled>No models fetched</option>'
+      }
+      if (customInput) customInput.style.display = 'block'
+    }).catch(function() {
+      modelSelect.innerHTML = '<option value="" disabled>Failed to fetch models</option>'
+      if (customInput) customInput.style.display = 'block'
+    })
+  } else {
+    html += '<option value="__custom__"' + (isCustom ? ' selected' : '') + '>Custom...</option>'
+    modelSelect.innerHTML = html
+    if (customInput) {
+      customInput.style.display = isCustom ? 'block' : 'none'
+      customInput.value = isCustom ? self.config.aiProvider.model : ''
+    }
+  }
 
   modelSelect.onchange = function() {
     if (this.value === '__custom__') {
-      var custom = prompt('Enter model name:', self.config.aiProvider.model || cfg.defaultModel)
-      if (custom) {
-        var opt = document.createElement('option')
-        opt.value = custom
-        opt.text = custom
-        opt.selected = true
-        modelSelect.add(opt, modelSelect.options[modelSelect.options.length - 1])
+      if (customInput) {
+        customInput.style.display = 'block'
+        customInput.focus()
+      }
+    } else {
+      if (customInput) {
+        customInput.style.display = 'none'
+        customInput.value = ''
       }
     }
   }
+}
+
+SettingsPage.prototype._formatSize = function(bytes) {
+  if (!bytes) return ''
+  var units = ['B', 'KB', 'MB', 'GB']
+  var i = 0
+  var size = bytes
+  while (size >= 1024 && i < units.length - 1) { size /= 1024; i++ }
+  return size.toFixed(1) + units[i]
+}
+
+SettingsPage.prototype._formatTokens = function(count) {
+  if (!count) return ''
+  if (count >= 1000000) return (count / 1000).toFixed(0) + 'K'
+  if (count >= 1000) return (count / 1000).toFixed(0) + 'K'
+  return String(count)
 }
 
 SettingsPage.prototype.testConnection = async function() {
@@ -511,6 +602,10 @@ SettingsPage.prototype.saveConfig = function() {
     this.config.aiProvider.provider = providerEl.value
     this.config.aiProvider.apiKey = keyEl ? keyEl.value : ''
     this.config.aiProvider.model = modelEl ? modelEl.value : ''
+    var customModelEl = document.getElementById('settings-model-custom')
+    if (customModelEl && customModelEl.style.display !== 'none' && customModelEl.value) {
+      this.config.aiProvider.model = customModelEl.value
+    }
   }
 
   var defaultModelEl = document.getElementById('settings-default-model')
