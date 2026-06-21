@@ -5,6 +5,7 @@ function UpdateNotification() {
   this.releaseNotes = ''
   this.downloadProgress = -1
   this.downloadComplete = false
+  this.isPaused = false
   this.remindCallback = null
   this.skipCallback = null
   this.downloadCallback = null
@@ -40,6 +41,12 @@ UpdateNotification.prototype.handleEvent = function(event, data) {
     case 'update-download-progress':
       this.updateProgress(data)
       break
+    case 'update-download-paused':
+      this.showPaused(data)
+      break
+    case 'update-download-cancelled':
+      this.hide()
+      break
     case 'update-download-complete':
       this.showDownloadComplete(data)
       break
@@ -56,6 +63,7 @@ UpdateNotification.prototype.showUpdateAvailable = function(data) {
 
   this.downloadProgress = -1
   this.downloadComplete = false
+  this.isPaused = false
 
   var notesHtml = ''
   if (this.releaseNotes) {
@@ -80,7 +88,14 @@ UpdateNotification.prototype.showUpdateAvailable = function(data) {
           '<div class="update-progress-bar">' +
             '<div class="update-progress-fill" id="update-progress-fill" style="width:0%"></div>' +
           '</div>' +
-          '<span class="update-progress-text" id="update-progress-text">Downloading...</span>' +
+          '<div class="update-progress-info">' +
+            '<span class="update-progress-text" id="update-progress-text">Downloading...</span>' +
+            '<div class="update-progress-actions" id="update-progress-actions">' +
+              '<button class="update-btn update-btn-small" id="update-pause-btn" title="Pause">⏸</button>' +
+              '<button class="update-btn update-btn-small hidden" id="update-resume-btn" title="Resume">▶</button>' +
+              '<button class="update-btn update-btn-small hidden" id="update-cancel-btn" title="Cancel">✕</button>' +
+            '</div>' +
+          '</div>' +
         '</div>' +
         '<div id="update-restart-area" class="update-restart-area hidden">' +
           '<span class="update-restart-icon">✓</span>' +
@@ -124,16 +139,40 @@ UpdateNotification.prototype.attachEvents = function() {
   if (downloadBtn) downloadBtn.onclick = function() {
     self.startDownload()
   }
+
+  var pauseBtn = document.getElementById('update-pause-btn')
+  if (pauseBtn) pauseBtn.onclick = function() {
+    window.anya.update.pause()
+  }
+
+  var resumeBtn = document.getElementById('update-resume-btn')
+  if (resumeBtn) resumeBtn.onclick = function() {
+    window.anya.update.resume()
+  }
+
+  var cancelBtn = document.getElementById('update-cancel-btn')
+  if (cancelBtn) cancelBtn.onclick = function() {
+    window.anya.update.cancel()
+    self.hide()
+    AnyaToast.info('Download cancelled')
+  }
 }
 
 UpdateNotification.prototype.startDownload = function() {
   var footer = document.getElementById('update-footer')
   var progressArea = document.getElementById('update-progress-area')
+  var pauseBtn = document.getElementById('update-pause-btn')
+  var resumeBtn = document.getElementById('update-resume-btn')
+  var cancelBtn = document.getElementById('update-cancel-btn')
 
   if (footer) footer.classList.add('hidden')
   if (progressArea) progressArea.classList.remove('hidden')
+  if (pauseBtn) pauseBtn.classList.remove('hidden')
+  if (resumeBtn) resumeBtn.classList.add('hidden')
+  if (cancelBtn) cancelBtn.classList.add('hidden')
 
   this.downloadProgress = 0
+  this.isPaused = false
   this.updateProgressBar()
 
   window.anya.update.download()
@@ -141,7 +180,24 @@ UpdateNotification.prototype.startDownload = function() {
 
 UpdateNotification.prototype.updateProgress = function(data) {
   this.downloadProgress = data.percent || 0
+  this.isPaused = false
   this.updateProgressBar()
+}
+
+UpdateNotification.prototype.showPaused = function(data) {
+  this.downloadProgress = data.percent || 0
+  this.isPaused = true
+
+  var pauseBtn = document.getElementById('update-pause-btn')
+  var resumeBtn = document.getElementById('update-resume-btn')
+  var cancelBtn = document.getElementById('update-cancel-btn')
+
+  if (pauseBtn) pauseBtn.classList.add('hidden')
+  if (resumeBtn) resumeBtn.classList.remove('hidden')
+  if (cancelBtn) cancelBtn.classList.remove('hidden')
+
+  var text = document.getElementById('update-progress-text')
+  if (text) text.textContent = 'Paused — ' + this.downloadProgress + '%'
 }
 
 UpdateNotification.prototype.updateProgressBar = function() {
@@ -153,6 +209,7 @@ UpdateNotification.prototype.updateProgressBar = function() {
 
 UpdateNotification.prototype.showDownloadComplete = function(data) {
   this.downloadComplete = true
+  this.isPaused = false
 
   var progressArea = document.getElementById('update-progress-area')
   var restartArea = document.getElementById('update-restart-area')
@@ -173,6 +230,7 @@ UpdateNotification.prototype.showDownloadComplete = function(data) {
 UpdateNotification.prototype.showError = function(data) {
   var self = this
   this.downloadProgress = -1
+  this.isPaused = false
 
   var progressArea = document.getElementById('update-progress-area')
   var footer = document.getElementById('update-footer')

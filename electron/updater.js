@@ -17,7 +17,12 @@ function UpdateManager(mainWindow) {
   this.checkInterval = null
   this.isDownloading = false
   this.downloadAborted = false
+  this.downloadPaused = false
   this.latestInfo = null
+  this.downloadReq = null
+  this.downloadFile = null
+  this.receivedBytes = 0
+  this.totalBytes = 0
   this.packagePath = path.join(__dirname, '..', 'package.json')
 
   var self = this
@@ -30,6 +35,15 @@ function UpdateManager(mainWindow) {
 UpdateManager.prototype.setConfig = function(config) {
   if (config.githubOwner) UPDATE_CONFIG.githubOwner = config.githubOwner
   if (config.githubRepo) UPDATE_CONFIG.githubRepo = config.githubRepo
+}
+
+UpdateManager.prototype.getConfig = function() {
+  var configPath = path.join(app.getPath('userData'), 'anya-ide-config.json')
+  try {
+    return JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  } catch(e) {
+    return {}
+  }
 }
 
 UpdateManager.prototype.checkForUpdates = function() {
@@ -134,13 +148,22 @@ UpdateManager.prototype.downloadUpdate = function() {
   if (this.isDownloading) return
   this.isDownloading = true
   this.downloadAborted = false
+  this.downloadPaused = false
+  this.receivedBytes = 0
+  this.totalBytes = 0
 
   var url = this.latestInfo.downloadUrl
   var fileName = this.latestInfo.assetName || 'Anya-IDE-Setup-' + this.latestInfo.latestVersion + '.exe'
   this.downloadPath = path.join(require('os').tmpdir(), fileName)
 
+  this.startDownloadRequest(url)
+}
+
+UpdateManager.prototype.startDownloadRequest = function(url, rangeStart) {
+  var self = this
   var parsedUrl = new URL(url)
   var mod = parsedUrl.protocol === 'https:' ? https : http
+  rangeStart = rangeStart || 0
 
   var opts = {
     hostname: parsedUrl.hostname,
@@ -150,31 +173,49 @@ UpdateManager.prototype.downloadUpdate = function() {
     timeout: 300000
   }
 
-  var file = fs.createWriteStream(self.downloadPath)
-  var receivedBytes = 0
-  var totalBytes = 0
+  if (rangeStart > 0) {
+    opts.headers['Range'] = 'bytes=' + rangeStart + '-'
+  }
 
-  var req = mod.request(opts, function(res) {
-    totalBytes = parseInt(res.headers['content-length']) || 0
+  var fileOpts = rangeStart > 0 ? { flags: 'a' } : {}
+  self.downloadFile = fs.createWriteStream(self.downloadPath, fileOpts)
+
+  self.downloadReq = mod.request(opts, function(res) {
+    self.totalBytes = parseInt(res.headers['content-length']) || 0
+    if (rangeStart > 0 && self.totalBytes > 0) {
+      self.totalBytes += rangeStart
+    }
 
     res.on('data', function(chunk) {
       if (self.downloadAborted) {
         res.destroy()
-        file.close()
-        try { fs.unlinkSync(self.downloadPath) } catch(e) {}
+        self.cleanupDownload()
         return
       }
-      receivedBytes += chunk.length
-      file.write(chunk)
-      if (totalBytes > 0) {
-        var pct = Math.round((receivedBytes / totalBytes) * 100)
-        self.sendToRenderer('update-download-progress', { percent: pct, received: receivedBytes, total: totalBytes })
+      if (self.downloadPaused) {
+        res.destroy()
+        self.downloadFile.end()
+        self.downloadReq = null
+        self.isDownloading = false
+        self.sendToRenderer('update-download-paused', {
+          percent: self.totalBytes > 0 ? Math.round((self.receivedBytes / self.totalBytes) * 100) : 0,
+          received: self.receivedBytes,
+          total: self.totalBytes
+        })
+        return
+      }
+      self.receivedBytes += chunk.length
+      self.downloadFile.write(chunk)
+      if (self.totalBytes > 0) {
+        var pct = Math.round((self.receivedBytes / self.totalBytes) * 100)
+        self.sendToRenderer('update-download-progress', { percent: pct, received: self.receivedBytes, total: self.totalBytes })
       }
     })
 
     res.on('end', function() {
-      file.end()
+      self.downloadFile.end()
       self.isDownloading = false
+      self.downloadReq = null
       self.sendToRenderer('update-download-complete', {
         path: self.downloadPath,
         version: self.latestInfo.latestVersion
@@ -182,27 +223,65 @@ UpdateManager.prototype.downloadUpdate = function() {
     })
   })
 
-  req.on('error', function(e) {
-    file.close()
-    self.isDownloading = false
-    try { fs.unlinkSync(self.downloadPath) } catch(e) {}
+  self.downloadReq.on('error', function(e) {
+    if (self.downloadPaused) return
+    self.cleanupDownload()
     self.sendToRenderer('update-error', { error: 'Download failed: ' + e.message })
   })
 
-  req.on('timeout', function() {
-    req.destroy()
-    file.close()
-    self.isDownloading = false
-    try { fs.unlinkSync(self.downloadPath) } catch(e) {}
+  self.downloadReq.on('timeout', function() {
+    self.downloadReq.destroy()
+    self.cleanupDownload()
     self.sendToRenderer('update-error', { error: 'Download timed out' })
   })
 
-  req.end()
+  self.downloadReq.end()
 }
 
-UpdateManager.prototype.abortDownload = function() {
+UpdateManager.prototype.pauseDownload = function() {
+  if (!this.isDownloading || this.downloadPaused) return
+  this.downloadPaused = true
+  if (this.downloadReq) {
+    this.downloadReq.destroy()
+    this.downloadReq = null
+  }
+}
+
+UpdateManager.prototype.resumeDownload = function() {
+  if (!this.downloadPath || !this.latestInfo) return
+  if (this.isDownloading) return
+  if (!this.downloadPaused && this.receivedBytes === 0) return
+
+  this.downloadPaused = false
+  this.downloadAborted = false
+  this.isDownloading = true
+
+  this.startDownloadRequest(this.latestInfo.downloadUrl, this.receivedBytes)
+}
+
+UpdateManager.prototype.cancelDownload = function() {
   this.downloadAborted = true
+  this.downloadPaused = false
   this.isDownloading = false
+  if (this.downloadReq) {
+    this.downloadReq.destroy()
+    this.downloadReq = null
+  }
+  this.cleanupDownload()
+  this.receivedBytes = 0
+  this.totalBytes = 0
+  this.sendToRenderer('update-download-cancelled', {})
+}
+
+UpdateManager.prototype.cleanupDownload = function() {
+  if (this.downloadFile) {
+    try { this.downloadFile.close() } catch(e) {}
+    this.downloadFile = null
+  }
+  if (this.downloadPath) {
+    try { fs.unlinkSync(this.downloadPath) } catch(e) {}
+    this.downloadPath = null
+  }
 }
 
 UpdateManager.prototype.installUpdate = function() {
@@ -246,6 +325,11 @@ UpdateManager.prototype.stopPeriodicCheck = function() {
 
 UpdateManager.prototype.handleCheckResult = function(result) {
   if (result.success && result.hasUpdate) {
+    var config = this.getConfig()
+    var updatePrefs = config.update || {}
+    if (updatePrefs.skipVersion === result.latestVersion) return
+    if (updatePrefs.remindLaterUntil && Date.now() < updatePrefs.remindLaterUntil) return
+
     this.sendToRenderer('update-available', {
       latestVersion: result.latestVersion,
       currentVersion: result.currentVersion,

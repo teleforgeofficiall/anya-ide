@@ -20,6 +20,19 @@ let terminalProcesses = new Map()
 let terminalCounter = 0
 let updateManager = null
 
+function killAllProcesses() {
+  for (const [id, proc] of terminalProcesses) {
+    try { proc.kill('SIGTERM') } catch(e) {}
+    try { process.kill(-proc.pid) } catch(e) {}
+  }
+  setTimeout(function() {
+    for (const [id, proc] of terminalProcesses) {
+      try { proc.kill('SIGKILL') } catch(e) {}
+    }
+    terminalProcesses.clear()
+  }, 300)
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -40,7 +53,10 @@ function createWindow() {
 
   mainWindow.loadFile(path.join(__dirname, '..', 'src', 'index.html'))
 
-  mainWindow.on('closed', () => { mainWindow = null })
+  mainWindow.on('closed', () => {
+    killAllProcesses()
+    mainWindow = null
+  })
 
   buildMenu()
 
@@ -120,10 +136,7 @@ function buildMenu() {
 app.whenReady().then(createWindow)
 
 app.on('window-all-closed', () => {
-  for (const [id, proc] of terminalProcesses) {
-    proc.kill()
-    terminalProcesses.delete(id)
-  }
+  killAllProcesses()
   if (process.platform !== 'darwin') app.quit()
 })
 
@@ -184,6 +197,24 @@ ipcMain.handle('update-install', async () => {
   return { success: true }
 })
 
+ipcMain.handle('update-pause', async () => {
+  if (!updateManager) return { success: false, error: 'Updater not initialized' }
+  updateManager.pauseDownload()
+  return { success: true }
+})
+
+ipcMain.handle('update-resume', async () => {
+  if (!updateManager) return { success: false, error: 'Updater not initialized' }
+  updateManager.resumeDownload()
+  return { success: true }
+})
+
+ipcMain.handle('update-cancel', async () => {
+  if (!updateManager) return { success: false, error: 'Updater not initialized' }
+  updateManager.cancelDownload()
+  return { success: true }
+})
+
 ipcMain.handle('update-remind-later', async () => {
   var configPath = getConfigPath()
   try {
@@ -222,7 +253,14 @@ ipcMain.on('window-maximize', () => {
   if (mainWindow?.isMaximized()) mainWindow.unmaximize()
   else mainWindow?.maximize()
 })
-ipcMain.on('window-close', () => mainWindow?.close())
+ipcMain.on('window-close', () => {
+  killAllProcesses()
+  if (mainWindow) {
+    mainWindow.removeAllListeners('close')
+    mainWindow.destroy()
+  }
+  app.quit()
+})
 
 ipcMain.handle('dialog-open-file', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {

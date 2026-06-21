@@ -66,12 +66,20 @@ contextBridge.exposeInMainWorld('anya', {
     check: () => ipcRenderer.invoke('update-check'),
     download: () => ipcRenderer.invoke('update-download'),
     install: () => ipcRenderer.invoke('update-install'),
+    pause: () => ipcRenderer.invoke('update-pause'),
+    resume: () => ipcRenderer.invoke('update-resume'),
+    cancel: () => ipcRenderer.invoke('update-cancel'),
     remindLater: () => ipcRenderer.invoke('update-remind-later'),
     skipVersion: (version) => ipcRenderer.invoke('update-skip-version', version),
     onNotification: (callback) => {
       const listener = (event, data) => callback(data.event, data.data)
       ipcRenderer.on('update-event', listener)
       return () => ipcRenderer.removeListener('update-event', listener)
+    },
+    onDownloadProgress: (callback) => {
+      const listener = (event, data) => callback(data)
+      ipcRenderer.on('update-download-progress', listener)
+      return () => ipcRenderer.removeListener('update-download-progress', listener)
     }
   },
 

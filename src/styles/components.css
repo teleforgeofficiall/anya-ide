@@ -677,11 +677,11 @@
 #update-notification {
   position: fixed;
   bottom: 36px;
-  right: 16px;
+  left: 16px;
   z-index: 9000;
   min-width: 320px;
   max-width: 400px;
-  animation: updateSlideIn 0.35s ease;
+  animation: updateSlideInLeft 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 #update-notification.hidden { display: none; }
@@ -790,6 +790,37 @@
   color: var(--anya-text-muted);
 }
 
+.update-progress-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.update-progress-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.update-btn-small {
+  padding: 2px 6px;
+  border: 1px solid var(--anya-border);
+  border-radius: 3px;
+  font-size: 11px;
+  cursor: pointer;
+  background: var(--anya-surface);
+  color: var(--anya-text-secondary);
+  line-height: 1.4;
+  transition: all 0.12s;
+}
+
+.update-btn-small:hover {
+  border-color: var(--anya-primary);
+  color: var(--anya-primary);
+  background: white;
+}
+
 .update-restart-area {
   display: flex;
   align-items: center;
@@ -841,9 +872,15 @@
   color: var(--anya-primary);
 }
 
-@keyframes updateSlideIn {
-  from { opacity: 0; transform: translateY(20px) scale(0.95); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+@keyframes updateSlideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-120px) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) translateY(0);
+  }
 }
 
 /* === WELCOME OVERLAY === */
