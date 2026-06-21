@@ -523,3 +523,4 @@ ipcMain.handle('git-checkout', async (event, { repoPath, branch }) => {
 ipcMain.handle('git-diff', async (event, { repoPath, filePath }) => {
   const r = await gitExec(['diff', filePath], repoPath)
   return r.success ? { success: true, diff: r.stdout } : { success: false, error: r.stderr }
+})
