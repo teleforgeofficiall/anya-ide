@@ -1,4 +1,4 @@
-/* === TITLE BAR === */
+﻿/* === TITLE BAR === */
 #titlebar .titlebar-left {
   display: flex;
   align-items: center;
@@ -300,7 +300,7 @@
 
 .editor-tab:hover .tab-close { opacity: 0.6; }
 .editor-tab .tab-close:hover { opacity: 1; background: var(--anya-border); }
-.editor-tab.unsaved .tab-name::after { content: '●'; color: var(--anya-primary); margin-left: 4px; font-size: 10px; }
+.editor-tab.unsaved .tab-name::after { content: 'ΓùÅ'; color: var(--anya-primary); margin-left: 4px; font-size: 10px; }
 
 /* === CHAT PANEL === */
 #chat-header {
@@ -1208,4 +1208,336 @@
   z-index: 1;
   pointer-events: none;
   animation: fadeIn 0.3s ease;
+}
+
+/* === MODEL FILTER & BADGES === */
+.settings-model-filter {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.settings-model-filter-btn {
+  padding: 5px 14px;
+  background: var(--anya-surface);
+  border: 1.5px solid var(--anya-border);
+  border-radius: 16px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  color: var(--anya-text);
+  letter-spacing: 0.3px;
+}
+
+.settings-model-filter-btn:hover {
+  border-color: var(--anya-primary);
+  color: var(--anya-primary);
+  background: rgba(255, 105, 180, 0.06);
+}
+
+.settings-model-filter-btn.active {
+  background: linear-gradient(135deg, var(--anya-primary), #FF1493);
+  color: white;
+  border-color: var(--anya-primary);
+  box-shadow: 0 2px 8px rgba(255, 105, 180, 0.3);
+}
+
+.settings-model-filter-btn .filter-count {
+  opacity: 0.7;
+  margin-left: 3px;
+  font-size: 10px;
+}
+
+.settings-model-badge {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  margin-left: 4px;
+  vertical-align: middle;
+  letter-spacing: 0.3px;
+}
+
+.settings-model-badge-free {
+  background: #E8F5E9;
+  color: #2E7D32;
+  border: 1px solid #A5D6A7;
+}
+
+.settings-model-badge-paid {
+  background: #FFF3E0;
+  color: #E65100;
+  border: 1px solid #FFCC80;
+}
+
+/* === MODEL INFO BAR === */
+.settings-model-info {
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: var(--anya-bg);
+  border: 1px solid var(--anya-border);
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--anya-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-model-info .model-info-label {
+  color: var(--anya-text-muted);
+  font-size: 10px;
+}
+
+.settings-model-info .model-info-value {
+  color: var(--anya-text);
+  font-weight: 500;
+}
+
+/* === TEST RESULT STYLED === */
+.settings-test-result {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  margin-left: 8px;
+  transition: all 0.15s ease;
+}
+
+.settings-test-result.testing {
+  background: rgba(255, 105, 180, 0.08);
+  color: var(--anya-text-muted);
+}
+
+.settings-test-result.success {
+  background: rgba(76, 175, 80, 0.08);
+  color: #2E7D32;
+  border: 1px solid rgba(76, 175, 80, 0.2);
+}
+
+.settings-test-result.fail {
+  background: rgba(244, 67, 54, 0.06);
+  color: var(--anya-error);
+  border: 1px solid rgba(244, 67, 54, 0.2);
+}
+
+/* === AI SIDEBAR QUICK BUTTONS === */
+.ai-quick-btn:hover {
+  border-color: var(--anya-primary) !important;
+  color: var(--anya-primary) !important;
+  background: rgba(255, 105, 180, 0.06) !important;
+}
+
+#ai-provider-info:hover {
+  border-color: var(--anya-primary) !important;
+}
+
+#ai-quick-ask-input:focus {
+  border-color: var(--anya-primary) !important;
+}
+
+#ai-quick-ask-send:hover {
+  opacity: 0.85;
+}
+
+/* === PLAN CARD === */
+.plan-card {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--anya-bg-secondary);
+  border: 1px solid var(--anya-primary);
+  border-radius: 8px;
+  animation: fadeIn 0.3s ease;
+}
+
+.plan-card .plan-btn-build {
+  flex: 1;
+  padding: 8px 16px;
+  background: var(--anya-primary);
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.plan-card .plan-btn-build:hover {
+  background: var(--anya-primary-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(255, 105, 180, 0.3);
+}
+
+.plan-card .plan-btn-edit {
+  padding: 8px 16px;
+  background: var(--anya-surface);
+  border: 1px solid var(--anya-border);
+  border-radius: 6px;
+  color: var(--anya-text);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.plan-card .plan-btn-edit:hover {
+  border-color: var(--anya-primary);
+  color: var(--anya-primary);
+}
+
+/* === CHAT ERROR CARD === */
+.chat-error-card {
+  background: rgba(244, 67, 54, 0.06);
+  border: 1px solid rgba(244, 67, 54, 0.2);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.chat-error-head {
+  font-weight: 600;
+  color: var(--anya-error);
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.chat-error-row {
+  display: flex;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.chat-error-key {
+  color: var(--anya-text-muted);
+  min-width: 70px;
+  flex-shrink: 0;
+}
+
+.chat-error-val {
+  color: var(--anya-text);
+  word-break: break-all;
+}
+
+.chat-error-raw {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--anya-text-secondary);
+  max-height: 60px;
+  overflow-y: auto;
+}
+
+.chat-error-fix {
+  color: var(--anya-primary);
+  font-weight: 500;
+}
+
+/* === RESIZE HANDLE === */
+#chat-resize-handle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: col-resize;
+  z-index: 10;
+  transition: background 0.12s;
+  opacity: 0;
+  pointer-events: auto;
+}
+
+#chat-resize-handle:hover,
+#chat-resize-handle:active {
+  opacity: 1;
+  background: var(--anya-primary);
+}
+
+/* === TOOL CALL CARD === */
+.tool-call-card {
+  margin: 8px 0 4px 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.4;
+  border: 1px solid;
+  background: var(--anya-bg);
+}
+
+.tool-call-success {
+  border-color: #4CAF50;
+  background: #F1F8E9;
+}
+
+.tool-call-error {
+  border-color: #EF5350;
+  background: #FFF3F0;
+}
+
+.tool-call-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.tool-call-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.tool-call-name {
+  font-weight: 600;
+  color: var(--anya-text);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tool-call-status {
+  margin-left: auto;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.tool-call-path {
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-size: 10px;
+  color: var(--anya-text-secondary);
+  margin-bottom: 2px;
+  word-break: break-all;
+}
+
+.tool-call-message {
+  color: var(--anya-text);
+  font-size: 11px;
+}
+
+.tool-result-content {
+  margin-top: 4px;
+  padding: 6px 8px;
+  background: rgba(0,0,0,0.05);
+  border-radius: 4px;
+  font-size: 10px;
+  max-height: 100px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* === TOOL RESULT MESSAGE === */
+.chat-msg.tool-result {
+  background: #F1F8E9;
+  border-left: 3px solid #4CAF50;
+  padding: 8px 12px;
+  margin: 4px 0;
+  border-radius: 0 6px 6px 0;
+}
+
+.chat-msg.tool-result .chat-text {
+  font-size: 12px;
 }

@@ -103,7 +103,6 @@
   width: var(--chat-width);
   flex-shrink: 0;
   background: var(--chat-bg);
-  border-left: 1px solid var(--anya-border);
   display: flex;
   flex-direction: column;
   overflow: hidden;

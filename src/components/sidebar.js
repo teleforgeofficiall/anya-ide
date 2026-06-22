@@ -27,6 +27,10 @@ Sidebar.prototype.switchTab = function(tabName) {
   document.querySelectorAll('.sidebar-panel').forEach(function(p) { p.classList.remove('active') })
   var panel = document.getElementById('sidebar-' + tabName)
   if (panel) panel.classList.add('active')
+
+  if (tabName === 'ai') {
+    this.initAI()
+  }
 }
 
 Sidebar.prototype.loadFolder = async function(folderPath) {
@@ -267,6 +271,146 @@ Sidebar.prototype.initGit = function() {
   this.gitLog = []
   this.gitCommitting = false
   this.renderGit()
+}
+
+Sidebar.prototype.initAI = function() {
+  var self = this
+  var container = document.getElementById('sidebar-ai')
+  container.innerHTML =
+    '<div style="display:flex;flex-direction:column;height:100%;padding:8px">' +
+      // Header
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-shrink:0">' +
+        '<div style="flex:1;font-size:12px;color:var(--anya-text);font-weight:600">🤖 AI Assistant</div>' +
+        '<div style="display:flex;gap:4px">' +
+          '<button id="ai-new-chat" style="background:var(--anya-primary);border:none;color:white;padding:4px 8px;border-radius:4px;font-size:11px;cursor:pointer">+ New Chat</button>' +
+          '<button id="ai-settings" style="background:var(--anya-surface);border:1px solid var(--anya-border);color:var(--anya-text);padding:4px 8px;border-radius:4px;font-size:11px;cursor:pointer">⚙️</button>' +
+        '</div>' +
+      '</div>' +
+
+      // Current provider/model info (clickable)
+      '<div id="ai-provider-info" style="margin-bottom:10px;padding:6px 8px;background:var(--anya-bg);border:1px solid var(--anya-border);border-radius:6px;cursor:pointer;transition:border-color 0.12s;flex-shrink:0" title="Click to change provider/model">' +
+        '<div style="font-size:10px;color:var(--anya-text-muted);margin-bottom:2px">Provider</div>' +
+        '<div id="ai-provider-label" style="font-size:11px;color:var(--anya-text);font-weight:500">—</div>' +
+        '<div style="font-size:10px;color:var(--anya-text-muted);margin-top:3px;margin-bottom:1px">Model</div>' +
+        '<div id="ai-model-label" style="font-size:11px;color:var(--anya-text);font-weight:500">—</div>' +
+      '</div>' +
+
+      // Quick Actions
+      '<div style="margin-bottom:8px;flex-shrink:0">' +
+        '<div style="font-size:11px;color:var(--anya-text-muted);margin-bottom:6px;font-weight:600">⚡ Quick Actions</div>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:4px">' +
+          '<button class="ai-quick-btn" data-action="explain" style="padding:6px 10px;background:var(--anya-surface);border:1px solid var(--anya-border);border-radius:6px;font-size:10px;cursor:pointer;transition:all 0.12s;display:flex;align-items:center;gap:4px;flex:1;min-width:80px;color:var(--anya-text)">💡 Explain</button>' +
+          '<button class="ai-quick-btn" data-action="fix" style="padding:6px 10px;background:var(--anya-surface);border:1px solid var(--anya-border);border-radius:6px;font-size:10px;cursor:pointer;transition:all 0.12s;display:flex;align-items:center;gap:4px;flex:1;min-width:80px;color:var(--anya-text)">🔧 Fix Code</button>' +
+          '<button class="ai-quick-btn" data-action="test" style="padding:6px 10px;background:var(--anya-surface);border:1px solid var(--anya-border);border-radius:6px;font-size:10px;cursor:pointer;transition:all 0.12s;display:flex;align-items:center;gap:4px;flex:1;min-width:80px;color:var(--anya-text)">🧪 Tests</button>' +
+          '<button class="ai-quick-btn" data-action="optimize" style="padding:6px 10px;background:var(--anya-surface);border:1px solid var(--anya-border);border-radius:6px;font-size:10px;cursor:pointer;transition:all 0.12s;display:flex;align-items:center;gap:4px;flex:1;min-width:80px;color:var(--anya-text)">⚡ Optimize</button>' +
+          '<button class="ai-quick-btn" data-action="document" style="padding:6px 10px;background:var(--anya-surface);border:1px solid var(--anya-border);border-radius:6px;font-size:10px;cursor:pointer;transition:all 0.12s;display:flex;align-items:center;gap:4px;flex:1;min-width:80px;color:var(--anya-text)">📝 Document</button>' +
+        '</div>' +
+      '</div>' +
+
+      // Spacer to push quick ask to bottom
+      '<div style="flex:1;min-height:8px"></div>' +
+
+      // Quick Ask
+      '<div style="flex-shrink:0;border-top:1px solid var(--anya-border);padding-top:8px;margin-top:4px">' +
+        '<div style="font-size:11px;color:var(--anya-text-muted);margin-bottom:6px;font-weight:600">💬 Quick Ask</div>' +
+        '<div style="display:flex;gap:4px">' +
+          '<input id="ai-quick-ask-input" type="text" placeholder="Ask anything..." style="flex:1;padding:6px 8px;background:var(--anya-bg);border:1px solid var(--anya-border);border-radius:6px;color:var(--anya-text);font-size:11px;outline:none;font-family:inherit" />' +
+          '<button id="ai-quick-ask-send" style="padding:6px 10px;background:var(--anya-primary);border:none;color:white;border-radius:6px;font-size:11px;cursor:pointer;flex-shrink:0">Send</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>'
+
+  // Wire events
+  document.getElementById('ai-new-chat').onclick = function() { self.newAIChat() }
+  document.getElementById('ai-settings').onclick = function() { self.showAIModelSettings() }
+
+  document.getElementById('ai-provider-info').onclick = function() { self.showAIModelSettings() }
+
+  document.querySelectorAll('.ai-quick-btn').forEach(function(btn) {
+    btn.onclick = function() {
+      var action = btn.dataset.action
+      self._handleQuickAction(action)
+    }
+  })
+
+  var quickInput = document.getElementById('ai-quick-ask-input')
+  var quickSend = document.getElementById('ai-quick-ask-send')
+
+  quickSend.onclick = function() {
+    self._sendQuickAsk()
+  }
+  quickInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      self._sendQuickAsk()
+    }
+  })
+
+  // Load provider info
+  this._updateAIProviderInfo()
+}
+
+Sidebar.prototype._updateAIProviderInfo = function() {
+  var self = this
+  ;(async function() {
+    try {
+      var result = await window.anya.config.read()
+      if (result.success && result.config && result.config.aiProvider) {
+        var cfg = result.config.aiProvider
+        var providerLabel = document.getElementById('ai-provider-label')
+        var modelLabel = document.getElementById('ai-model-label')
+        if (providerLabel) providerLabel.textContent = AnyaHelpers.escapeHtml(cfg.provider || 'Not configured')
+        if (modelLabel) modelLabel.textContent = AnyaHelpers.escapeHtml(cfg.model || 'None')
+      }
+    } catch(e) {}
+  })()
+}
+
+Sidebar.prototype._handleQuickAction = function(action) {
+  if (!window.app || !window.app.chat) return
+  var chat = window.app.chat
+  var context = ''
+  var editor = window.app.editorManager
+  if (editor) {
+    var selected = editor.getSelectedText ? editor.getSelectedText() : ''
+    if (selected) context = '\n\n```\n' + selected + '\n```'
+  }
+
+  var prompts = {
+    'explain': 'Explain the following code' + (context ? context : ' in the current file') + '. Describe what it does, its purpose, and any potential issues.',
+    'fix': 'Review the following code for bugs, issues, and anti-patterns' + context + '. Provide a fixed version with explanations.',
+    'test': 'Generate comprehensive tests for the following code' + context + '. Use the appropriate testing framework (Jest/Mocha/etc). Include edge cases.',
+    'optimize': 'Analyze and optimize the following code for performance and readability' + context + '. Suggest specific improvements and show the optimized version.',
+    'document': 'Add comprehensive documentation and comments to the following code' + context + '. Include JSDoc/TSDoc style comments.'
+  }
+
+  chat.show()
+  chat.inputEl.value = prompts[action] || ''
+  chat.sendMessage()
+}
+
+Sidebar.prototype._sendQuickAsk = function() {
+  var input = document.getElementById('ai-quick-ask-input')
+  if (!input || !input.value.trim()) return
+  if (!window.app || !window.app.chat) return
+  var chat = window.app.chat
+  chat.show()
+  chat.inputEl.value = input.value
+  chat.sendMessage()
+  input.value = ''
+}
+
+Sidebar.prototype.newAIChat = function() {
+  if (window.app && window.app.chat) {
+    window.app.chat.newSession()
+    window.app.chat.show()
+  }
+}
+
+Sidebar.prototype.showAIModelSettings = function() {
+  if (window.app && window.app.settings) {
+    window.app.settings.toggle('ai-provider')
+  }
 }
 
 Sidebar.prototype.renderGit = function() {

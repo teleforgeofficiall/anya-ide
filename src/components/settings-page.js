@@ -1,4 +1,4 @@
-function SettingsPage() {
+﻿function SettingsPage() {
   this.isVisible = false
   this.activeTab = 'providers'
   this.config = {}
@@ -6,7 +6,6 @@ function SettingsPage() {
 
   this.tabs = [
     { id: 'providers', label: 'AI Providers', icon: '🔑' },
-    { id: 'models', label: 'Models', icon: '🧠' },
     { id: 'prompt', label: 'Custom Prompt', icon: '✏️' },
     { id: 'appearance', label: 'Appearance', icon: '🎨' },
     { id: 'workspace', label: 'Workspace', icon: '📁' },
@@ -44,6 +43,26 @@ SettingsPage.prototype.loadConfig = async function() {
     if (!this.config.git) this.config.git = { defaultBranch: 'main', autoFetch: false }
     if (!this.config.github) this.config.github = { token: '' }
     if (!this.config.memory) this.config.memory = { contextWindow: 50, saveConversations: true }
+    // Migrate from old flat aiProvider format to per-provider format
+    var ap = this.config.aiProvider
+    if (ap && ap.provider && !ap.providers) {
+      var oldProvider = ap.provider
+      var oldModel = ap.model || ''
+      ap.providers = {}
+      ap.providers[oldProvider] = {
+        apiKey: ap.apiKey || '',
+        model: oldModel,
+        temperature: ap.temperature || 0.7,
+        maxTokens: ap.maxTokens || 4096
+      }
+      ap.activeProvider = oldProvider
+      delete ap.apiKey
+      delete ap.model
+      delete ap.provider
+      delete ap.temperature
+      delete ap.maxTokens
+      window.anya.config.write(self.config)
+    }
   } else {
     this.config = {
       aiProvider: {},
@@ -61,7 +80,7 @@ SettingsPage.prototype.loadConfig = async function() {
 SettingsPage.prototype.renderSettings = function() {
   var self = this
   var providers = this.aiProviderService ? this.aiProviderService.providers : {}
-  var currentProvider = this.config.aiProvider.provider || ''
+  var currentProvider = this.config.aiProvider.activeProvider || ''
 
   var tabHtml = this.tabs.map(function(t) {
     return '<button class="settings-tab' + (t.id === self.activeTab ? ' active' : '') + '" data-tab="' + t.id + '">' +
@@ -117,7 +136,6 @@ SettingsPage.prototype.renderTabContent = function() {
   var self = this
   switch (this.activeTab) {
     case 'providers': return this.renderProvidersTab()
-    case 'models': return this.renderModelsTab()
     case 'prompt': return this.renderPromptTab()
     case 'appearance': return this.renderAppearanceTab()
     case 'update': return this.renderUpdateTab()
@@ -132,7 +150,8 @@ SettingsPage.prototype.renderTabContent = function() {
 SettingsPage.prototype.renderProvidersTab = function() {
   var self = this
   var providers = this.aiProviderService ? this.aiProviderService.providers : {}
-  var currentProvider = this.config.aiProvider.provider || ''
+  var currentProvider = this.config.aiProvider.activeProvider || ''
+  var providerConfig = (this.config.aiProvider.providers && this.config.aiProvider.providers[currentProvider]) || {}
   var providerOptions = '<option value="">-- Select Provider --</option>'
   for (var id in providers) {
     if (providers.hasOwnProperty(id)) {
@@ -153,40 +172,31 @@ SettingsPage.prototype.renderProvidersTab = function() {
     '<div class="settings-field" id="settings-key-field">' +
       '<label class="settings-label">API Key</label>' +
       '<input id="settings-api-key" class="settings-input" type="password" placeholder="sk-..." value="' +
-        AnyaHelpers.escapeHtml(this.config.aiProvider.apiKey || '') + '" />' +
+        AnyaHelpers.escapeHtml(providerConfig.apiKey || '') + '" />' +
     '</div>' +
 
     '<div class="settings-field">' +
       '<label class="settings-label">Model</label>' +
+      '<div class="settings-model-filter">' +
+        '<button class="settings-model-filter-btn active" data-filter="all">All <span class="filter-count"></span></button>' +
+        '<button class="settings-model-filter-btn" data-filter="free">Free <span class="filter-count"></span></button>' +
+        '<button class="settings-model-filter-btn" data-filter="paid">Paid <span class="filter-count"></span></button>' +
+        '<input id="settings-model-search" class="settings-input" type="text" placeholder="Search models..." style="flex:1" />' +
+      '</div>' +
       '<select id="settings-model" class="settings-select"></select>' +
       '<input id="settings-model-custom" class="settings-input" type="text" placeholder="Custom model name..." style="margin-top:6px;display:none" />' +
     '</div>' +
 
+    '<div class="settings-field" style="display:flex;align-items:center;gap:12px">' +
+      '<div><label class="settings-label">Temperature</label><input id="settings-temperature" class="settings-input" type="number" step="0.1" min="0" max="2" value="' +
+        (providerConfig.temperature || 0.7) + '" style="width:80px" /></div>' +
+      '<div><label class="settings-label">Max Tokens</label><input id="settings-max-tokens" class="settings-input" type="number" min="1" max="131072" value="' +
+        (providerConfig.maxTokens || 4096) + '" style="width:100px" /></div>' +
+    '</div>' +
+
     '<div class="settings-field">' +
       '<button id="settings-test-connection" class="settings-btn settings-btn-outline">Test Connection</button>' +
-      '<span id="settings-test-result" style="margin-left:8px;font-size:12px"></span>' +
-    '</div>' +
-  '</div>'
-}
-
-SettingsPage.prototype.renderModelsTab = function() {
-  return '<div class="settings-tab-content active">' +
-    '<h3 class="settings-section-title">Models</h3>' +
-    '<p class="settings-section-desc">Manage AI model settings and defaults.</p>' +
-    '<div class="settings-field">' +
-      '<label class="settings-label">Default Model</label>' +
-      '<input id="settings-default-model" class="settings-input" type="text" placeholder="e.g. gpt-4o" value="' +
-        AnyaHelpers.escapeHtml((this.config.aiProvider && this.config.aiProvider.model) || '') + '" />' +
-    '</div>' +
-    '<div class="settings-field">' +
-      '<label class="settings-label">Temperature</label>' +
-      '<input id="settings-temperature" class="settings-input" type="number" step="0.1" min="0" max="2" value="' +
-        (this.config.aiProvider.temperature || 0.7) + '" style="width:80px" />' +
-    '</div>' +
-    '<div class="settings-field">' +
-      '<label class="settings-label">Max Tokens</label>' +
-      '<input id="settings-max-tokens" class="settings-input" type="number" min="1" max="131072" value="' +
-        (this.config.aiProvider.maxTokens || 4096) + '" style="width:100px" />' +
+      '<span id="settings-test-result" class="settings-test-result"></span>' +
     '</div>' +
   '</div>'
 }
@@ -380,9 +390,18 @@ SettingsPage.prototype.attachTabEvents = function() {
   if (providerSelect) {
     providerSelect.onchange = function() {
       var val = providerSelect.value
+      if (!val) return
+      // Save current provider's fields into config before switching
+      self._saveCurrentProviderToConfig()
+      // Switch to new provider
+      self.config.aiProvider.activeProvider = val
+      // Load new provider's saved values into UI
+      self._loadProviderIntoUI(val)
+      // Update model options
       self.updateModelOptions(val)
       // Show/hide API key field based on provider
       var keyField = document.getElementById('settings-key-field')
+      var keyInput = document.getElementById('settings-api-key')
       if (keyField) {
         var providers = self.aiProviderService ? self.aiProviderService.providers : {}
         var cfg = providers[val]
@@ -390,6 +409,21 @@ SettingsPage.prototype.attachTabEvents = function() {
           keyField.style.display = 'none'
         } else {
           keyField.style.display = 'block'
+          // Update placeholder to hint which API key format is expected
+          if (keyInput) {
+            var hints = {
+              openai: 'sk-... (OpenAI API key)',
+              anthropic: 'sk-ant-... (Anthropic API key)',
+              google: 'AIza... (Google Gemini API key)',
+              openrouter: 'sk-or-... (OpenRouter API key)',
+              deepseek: 'sk-... (DeepSeek API key)',
+              groq: 'gsk_... (Groq API key)',
+              mistral: 'MISTRAL_... (Mistral API key)',
+              xai: 'xai-... (xAI API key)',
+              together: 'tgpv... (Together AI key)'
+            }
+            keyInput.placeholder = hints[val] || 'Enter API key'
+          }
         }
       }
     }
@@ -400,6 +434,39 @@ SettingsPage.prototype.attachTabEvents = function() {
   if (testBtn) {
     testBtn.onclick = function() { self.testConnection() }
   }
+
+  // When API key changes, re-fetch models if provider is openrouter
+  var apiKeyInput = document.getElementById('settings-api-key')
+  if (apiKeyInput && !apiKeyInput.dataset.bound) {
+    apiKeyInput.dataset.bound = '1'
+    var debounceTimer = null
+    apiKeyInput.addEventListener('input', function() {
+      var providerEl = document.getElementById('settings-provider')
+      if (providerEl && providerEl.value === 'openrouter') {
+        if (debounceTimer) clearTimeout(debounceTimer)
+        debounceTimer = setTimeout(function() {
+          self.updateModelOptions('openrouter')
+        }, 700)
+      }
+    })
+  }
+
+  // Model search + filter
+  var modelSearch = document.getElementById('settings-model-search')
+  var filterBtns = document.querySelectorAll('.settings-model-filter-btn')
+  if (modelSearch) {
+    modelSearch.addEventListener('input', function() {
+      self._filterModels()
+    })
+  }
+  filterBtns.forEach(function(btn) {
+    btn.onclick = function() {
+      filterBtns.forEach(function(b) { b.classList.remove('active') })
+      btn.classList.add('active')
+      if (modelSearch) modelSearch.focus()
+      self._filterModels()
+    }
+  })
 
   var clearBtn = document.getElementById('settings-clear-history')
   if (clearBtn) {
@@ -457,6 +524,7 @@ SettingsPage.prototype.updateModelOptions = function(providerId) {
   var modelSelect = document.getElementById('settings-model')
   var customInput = document.getElementById('settings-model-custom')
   if (!modelSelect) return
+  self.rawModels = []
   var providers = this.aiProviderService ? this.aiProviderService.providers : {}
   var cfg = providers[providerId]
   if (!cfg) {
@@ -465,28 +533,33 @@ SettingsPage.prototype.updateModelOptions = function(providerId) {
     return
   }
 
+  var activeProvider = this.config.aiProvider.activeProvider || ''
+  var providerModel = (this.config.aiProvider.providers && this.config.aiProvider.providers[activeProvider] && this.config.aiProvider.providers[activeProvider].model) || ''
+
   var html = ''
   if (cfg.models && cfg.models.length > 0) {
     for (var i = 0; i < cfg.models.length; i++) {
-      var selected = cfg.models[i] === this.config.aiProvider.model ? ' selected' : ''
+      var selected = cfg.models[i] === providerModel ? ' selected' : ''
       html += '<option value="' + cfg.models[i] + '"' + selected + '>' + cfg.models[i] + '</option>'
     }
   }
 
-  var isCustom = this.config.aiProvider.model && cfg.models.indexOf(this.config.aiProvider.model) === -1
+  var isCustom = providerModel && cfg.models.indexOf(providerModel) === -1
 
   if (providerId === 'ollama') {
     html = '<option value="" disabled>Loading local models...</option>'
     modelSelect.innerHTML = html
     if (customInput) customInput.style.display = 'none'
 
+    var providerEl = document.getElementById('settings-provider')
     window.anya.ai.fetchOllamaModels().then(function(result) {
+      if (providerEl && providerEl.value !== 'ollama') return
       if (result.success && result.models.length > 0) {
         var h = ''
         for (var i = 0; i < result.models.length; i++) {
           var name = result.models[i].name
           var size = result.models[i].size ? '(' + self._formatSize(result.models[i].size) + ')' : ''
-          var sel = name === self.config.aiProvider.model ? ' selected' : ''
+          var sel = name === providerModel ? ' selected' : ''
           h += '<option value="' + name + '"' + sel + '>' + AnyaHelpers.escapeHtml(name + ' ' + size) + '</option>'
         }
         modelSelect.innerHTML = h
@@ -495,33 +568,130 @@ SettingsPage.prototype.updateModelOptions = function(providerId) {
       }
       if (customInput) customInput.style.display = 'block'
     }).catch(function() {
+      if (providerEl && providerEl.value !== 'ollama') return
       modelSelect.innerHTML = '<option value="" disabled>Ollama not running</option>'
       if (customInput) customInput.style.display = 'block'
     })
-  } else if (providerId === 'openrouter') {
+    } else if (providerId === 'opencode') {
+      html = '<option value="" disabled>Connecting to OpenCode server...</option>'
+      modelSelect.innerHTML = html
+      if (customInput) customInput.style.display = 'none'
+
+      self.rawModels = []
+      var providerEl = document.getElementById('settings-provider')
+
+      ;(async function() {
+        try {
+          // Try OpenCode local server API
+          var result = await window.anya.ai.proxy({
+            url: 'http://localhost:4096/config/providers',
+            method: 'GET'
+          })
+          if (providerEl && providerEl.value !== 'opencode') return
+          if (result.success && result.body) {
+            var data = JSON.parse(result.body)
+            var providers = data.providers || data || []
+            var models = []
+            for (var pi = 0; pi < providers.length; pi++) {
+              var p = providers[pi]
+              var pName = p.id || p.name || 'unknown'
+              if (p.models) {
+                for (var mid in p.models) {
+                  if (p.models.hasOwnProperty(mid)) {
+                    var m = p.models[mid]
+                    models.push({
+                      id: pName + '/' + mid,
+                      name: m.name || mid,
+                      context_length: m.contextLength || '',
+                      pricing: { prompt: '0', completion: '0' }
+                    })
+                  }
+                }
+              }
+            }
+            if (models.length > 0) {
+              self.rawModels = models
+              self._renderFilteredModels()
+              AnyaToast.success('Loaded ' + models.length + ' OpenCode models')
+            } else {
+              modelSelect.innerHTML = '<option value="" disabled>No models found</option>'
+            }
+          } else {
+            // Try /provider endpoint as fallback
+            var result2 = await window.anya.ai.proxy({
+              url: 'http://localhost:4096/provider',
+              method: 'GET'
+            })
+            if (providerEl && providerEl.value !== 'opencode') return
+            if (result2.success && result2.body) {
+              var data2 = JSON.parse(result2.body)
+              var allProviders = data2.all || []
+              var models2 = []
+              for (var pi = 0; pi < allProviders.length; pi++) {
+                var p2 = allProviders[pi]
+                if (p2.models) {
+                  for (var mid2 in p2.models) {
+                    if (p2.models.hasOwnProperty(mid2)) {
+                      var m2 = p2.models[mid2]
+                      models2.push({
+                        id: p2.id + '/' + mid2,
+                        name: m2.name || mid2,
+                        context_length: m2.contextLength || '',
+                        pricing: { prompt: '0', completion: '0' }
+                      })
+                    }
+                  }
+                }
+              }
+              if (models2.length > 0) {
+                self.rawModels = models2
+                self._renderFilteredModels()
+                AnyaToast.success('Loaded ' + models2.length + ' OpenCode models')
+              } else {
+                modelSelect.innerHTML = '<option value="" disabled>No models found</option>'
+              }
+            } else {
+              modelSelect.innerHTML = '<option value="" disabled>Cannot connect to OpenCode server at localhost:4096</option>'
+            }
+          }
+        } catch (err) {
+          if (providerEl && providerEl.value !== 'opencode') return
+          modelSelect.innerHTML = '<option value="" disabled>Connection error: ' + AnyaHelpers.escapeHtml(err.message || 'fetch failed') + '</option>'
+        }
+        if (customInput) customInput.style.display = 'block'
+      })()
+    } else if (providerId === 'openrouter') {
     html = '<option value="" disabled>Loading OpenRouter models...</option>'
     modelSelect.innerHTML = html
     if (customInput) customInput.style.display = 'none'
 
+    self.rawModels = []
     var apiKey = document.getElementById('settings-api-key').value
+    var providerEl = document.getElementById('settings-provider')
     window.anya.ai.fetchOpenRouterModels(apiKey || undefined).then(function(result) {
-      if (result.success && result.models.length > 0) {
-        var h = ''
-        // Show top 50 popular models
-        var models = result.models.slice(0, 50)
-        for (var i = 0; i < models.length; i++) {
-          var name = models[i].id
-          var ctx = models[i].context_length ? ' (' + self._formatTokens(models[i].context_length) + ' ctx)' : ''
-          var sel = name === self.config.aiProvider.model ? ' selected' : ''
-          h += '<option value="' + name + '"' + sel + '>' + AnyaHelpers.escapeHtml(name + ctx) + '</option>'
-        }
-        modelSelect.innerHTML = h
+      // If the user switched providers mid-fetch, ignore stale result
+      if (providerEl && providerEl.value !== 'openrouter') return
+      if (result.success && result.models && result.models.length > 0) {
+        self.rawModels = result.models
+        self._renderFilteredModels()
+        AnyaToast.success('Loaded ' + result.models.length + ' OpenRouter models')
       } else {
-        modelSelect.innerHTML = '<option value="" disabled>No models fetched</option>'
+        var msg = 'Failed to fetch models'
+        if (result.status === 401) msg = 'Invalid API key (401)'
+        else if (result.status === 429) msg = 'Rate limited (429). Try again shortly.'
+        else if (result.error) msg = result.error
+        modelSelect.innerHTML = '<option value="" disabled>' + AnyaHelpers.escapeHtml(msg) + '</option>'
+        if (result.raw) {
+          var err = (self.aiProviderService && self.aiProviderService.normalizeError)
+            ? self.aiProviderService.normalizeError(result, 'openrouter', '')
+            : { provider: 'OpenRouter', code: result.status || 0, raw: result.raw, fix: 'Verify your API key' }
+          if (window.AnyaToast && window.AnyaToast.error) AnyaToast.error('OpenRouter: ' + msg + '. ' + err.fix)
+        }
       }
       if (customInput) customInput.style.display = 'block'
-    }).catch(function() {
-      modelSelect.innerHTML = '<option value="" disabled>Failed to fetch models</option>'
+    }).catch(function(err) {
+      if (providerEl && providerEl.value !== 'openrouter') return
+      modelSelect.innerHTML = '<option value="" disabled>Network error: ' + AnyaHelpers.escapeHtml(err.message || 'fetch failed') + '</option>'
       if (customInput) customInput.style.display = 'block'
     })
   } else {
@@ -529,7 +699,7 @@ SettingsPage.prototype.updateModelOptions = function(providerId) {
     modelSelect.innerHTML = html
     if (customInput) {
       customInput.style.display = isCustom ? 'block' : 'none'
-      customInput.value = isCustom ? self.config.aiProvider.model : ''
+      customInput.value = isCustom ? providerModel : ''
     }
   }
 
@@ -548,48 +718,216 @@ SettingsPage.prototype.updateModelOptions = function(providerId) {
   }
 }
 
-SettingsPage.prototype._formatSize = function(bytes) {
-  if (!bytes) return ''
-  var units = ['B', 'KB', 'MB', 'GB']
-  var i = 0
-  var size = bytes
-  while (size >= 1024 && i < units.length - 1) { size /= 1024; i++ }
-  return size.toFixed(1) + units[i]
-}
+  SettingsPage.prototype._formatSize = function(bytes) {
+    if (!bytes) return ''
+    var units = ['B', 'KB', 'MB', 'GB']
+    var i = 0
+    var size = bytes
+    while (size >= 1024 && i < units.length - 1) { size /= 1024; i++ }
+    return size.toFixed(1) + units[i]
+  }
 
-SettingsPage.prototype._formatTokens = function(count) {
-  if (!count) return ''
-  if (count >= 1000000) return (count / 1000).toFixed(0) + 'K'
-  if (count >= 1000) return (count / 1000).toFixed(0) + 'K'
-  return String(count)
-}
+  SettingsPage.prototype._formatTokens = function(tokens) {
+    if (!tokens) return ''
+    var num = parseInt(tokens)
+    if (isNaN(num)) return String(tokens)
+    if (num >= 1000000) return (num / 1000).toFixed(0) + 'K'
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'K'
+    return String(num)
+  }
+
+  SettingsPage.prototype._renderFilteredModels = function() {
+    var modelSelect = document.getElementById('settings-model')
+    if (!modelSelect) return
+    var self = this
+
+    var searchText = document.getElementById('settings-model-search') ? document.getElementById('settings-model-search').value.toLowerCase() : ''
+    var filter = 'all'
+    var filterBtns = document.querySelectorAll('.settings-model-filter-btn')
+    for (var i = 0; i < filterBtns.length; i++) {
+      if (filterBtns[i].classList.contains('active')) {
+        filter = filterBtns[i].dataset.filter
+        break
+      }
+    }
+
+    var totalFree = 0
+    var totalPaid = 0
+    var html = ''
+    var activeProvider = self.config.aiProvider.activeProvider || ''
+    var providerModel = (self.config.aiProvider.providers && self.config.aiProvider.providers[activeProvider] && self.config.aiProvider.providers[activeProvider].model) || ''
+    if (self.rawModels && self.rawModels.length > 0) {
+      for (var i = 0; i < self.rawModels.length; i++) {
+        var model = self.rawModels[i]
+        var name = model.id
+        var ctx = model.context_length ? ' (' + self._formatTokens(model.context_length) + ' ctx)' : ''
+        var isFree = model.pricing && model.pricing.prompt === '0' && model.pricing.completion === '0'
+        var isPaid = !isFree
+
+        if (isFree) totalFree++
+        else totalPaid++
+
+        if (filter === 'free' && isPaid) continue
+        if (filter === 'paid' && isFree) continue
+        if (searchText && !name.toLowerCase().includes(searchText)) continue
+
+        var selected = name === providerModel ? ' selected' : ''
+        var label = AnyaHelpers.escapeHtml(name + ctx)
+        if (isFree) label += ' (FREE)'
+        else if (isPaid) label += ' (PAID)'
+        html += '<option value="' + name + '"' + selected + '>' + label + '</option>'
+      }
+    }
+
+    modelSelect.innerHTML = html
+
+    // Update filter button counts
+    for (var i = 0; i < filterBtns.length; i++) {
+      var btn = filterBtns[i]
+      var f = btn.dataset.filter
+      var countSpan = btn.querySelector('.filter-count')
+      if (!countSpan) {
+        countSpan = document.createElement('span')
+        countSpan.className = 'filter-count'
+        btn.appendChild(countSpan)
+      }
+      if (f === 'all') countSpan.textContent = '(' + self.rawModels.length + ')'
+      else if (f === 'free') countSpan.textContent = '(' + totalFree + ')'
+      else if (f === 'paid') countSpan.textContent = '(' + totalPaid + ')'
+    }
+
+    // Update model info bar
+    var infoBar = document.getElementById('settings-model-info')
+    if (!infoBar) {
+      infoBar = document.createElement('div')
+      infoBar.id = 'settings-model-info'
+      infoBar.className = 'settings-model-info'
+      modelSelect.parentNode.insertBefore(infoBar, modelSelect.nextSibling)
+    }
+    var selectedModel = providerModel
+    var matched = null
+    if (self.rawModels && selectedModel) {
+      for (var i = 0; i < self.rawModels.length; i++) {
+        if (self.rawModels[i].id === selectedModel) { matched = self.rawModels[i]; break }
+      }
+    }
+    if (matched) {
+      var ctxSize = matched.context_length ? self._formatTokens(matched.context_length) + ' ctx' : '—'
+      var pricing = (matched.pricing && matched.pricing.prompt === '0' && matched.pricing.completion === '0') ? 'Free' : 'Paid'
+      infoBar.innerHTML = '<span><span class="model-info-label">Model:</span> <span class="model-info-value">' + AnyaHelpers.escapeHtml(selectedModel) + '</span></span>' +
+        '<span><span class="model-info-label">Context:</span> <span class="model-info-value">' + ctxSize + '</span></span>' +
+        '<span><span class="model-info-label">Pricing:</span> <span class="model-info-value">' + pricing + '</span></span>'
+    } else if (selectedModel) {
+      infoBar.innerHTML = '<span><span class="model-info-label">Current:</span> <span class="model-info-value">' + AnyaHelpers.escapeHtml(selectedModel) + '</span></span>'
+    } else {
+      infoBar.innerHTML = '<span class="model-info-value" style="color:var(--anya-text-muted)">No model selected</span>'
+    }
+  }
+
+  SettingsPage.prototype._filterModels = function() {
+    var self = this
+    var activeProvider = self.config.aiProvider.activeProvider || ''
+    // Only providers with live-fetched models support filtering
+    if (activeProvider !== 'openrouter' && activeProvider !== 'opencode') return
+    if (self.rawModels && self.rawModels.length > 0) {
+      self._renderFilteredModels()
+    }
+  }
+
+  SettingsPage.prototype._saveCurrentProviderToConfig = function() {
+    var currentProvider = this.config.aiProvider.activeProvider
+    if (!currentProvider) return
+    if (!this.config.aiProvider.providers) this.config.aiProvider.providers = {}
+    if (!this.config.aiProvider.providers[currentProvider]) {
+      this.config.aiProvider.providers[currentProvider] = {}
+    }
+    var keyEl = document.getElementById('settings-api-key')
+    var modelEl = document.getElementById('settings-model')
+    var customModelEl = document.getElementById('settings-model-custom')
+    var tempEl = document.getElementById('settings-temperature')
+    var maxTokensEl = document.getElementById('settings-max-tokens')
+    var currentCfg = this.config.aiProvider.providers[currentProvider]
+    if (keyEl) currentCfg.apiKey = keyEl.value
+    if (modelEl) currentCfg.model = modelEl.value
+    if (customModelEl && customModelEl.style.display !== 'none' && customModelEl.value) {
+      currentCfg.model = customModelEl.value
+    }
+    if (tempEl) currentCfg.temperature = parseFloat(tempEl.value) || 0.7
+    if (maxTokensEl) currentCfg.maxTokens = parseInt(maxTokensEl.value) || 4096
+  }
+
+  SettingsPage.prototype._loadProviderIntoUI = function(providerId) {
+    var providers = this.config.aiProvider.providers || {}
+    var cfg = providers[providerId] || {}
+    var keyEl = document.getElementById('settings-api-key')
+    var modelEl = document.getElementById('settings-model')
+    if (modelEl) modelEl.innerHTML = '<option value="" disabled>Loading...</option>'
+    var tempEl = document.getElementById('settings-temperature')
+    var maxTokensEl = document.getElementById('settings-max-tokens')
+    var customModelEl = document.getElementById('settings-model-custom')
+    if (keyEl) keyEl.value = cfg.apiKey || ''
+    if (modelEl) modelEl.value = cfg.model || ''
+    if (tempEl) tempEl.value = cfg.temperature || 0.7
+    if (maxTokensEl) maxTokensEl.value = cfg.maxTokens || 4096
+    if (customModelEl) {
+      customModelEl.style.display = 'none'
+      customModelEl.value = ''
+    }
+  }
 
 SettingsPage.prototype.testConnection = async function() {
-  var resultEl = document.getElementById('settings-test-result')
-  resultEl.textContent = 'Testing...'
-  resultEl.style.color = 'var(--anya-text-muted)'
+    var resultEl = document.getElementById('settings-test-result')
+    resultEl.textContent = '⏳ Testing...'
+    resultEl.className = 'settings-test-result testing'
 
-  if (!this.aiProviderService) {
-    resultEl.textContent = 'No AI provider service available'
-    resultEl.style.color = 'var(--anya-error)'
-    return
-  }
+    if (!this.aiProviderService) {
+      resultEl.textContent = '✕ No AI provider service available'
+      resultEl.className = 'settings-test-result fail'
+      return
+    }
 
-  try {
-    this.aiProviderService.setProvider(
-      document.getElementById('settings-provider').value,
-      document.getElementById('settings-api-key').value,
-      document.getElementById('settings-model').value
-    )
-    await this.aiProviderService.sendMessage([{ role: 'user', content: 'Say hello in one word.' }])
-    resultEl.textContent = '✓ Connection successful!'
-    resultEl.style.color = 'var(--anya-success)'
-    AnyaToast.success('AI connection successful')
-  } catch (err) {
-    resultEl.textContent = '✕ Failed: ' + err.message
-    resultEl.style.color = 'var(--anya-error)'
+    var providerId = document.getElementById('settings-provider').value
+    var apiKey = document.getElementById('settings-api-key').value
+    var model = document.getElementById('settings-model').value
+
+    if (!providerId) {
+      resultEl.textContent = '✕ Select a provider first'
+      resultEl.className = 'settings-test-result fail'
+      return
+    }
+    if (!model) {
+      resultEl.textContent = '✕ Select a model first'
+      resultEl.className = 'settings-test-result fail'
+      return
+    }
+
+    try {
+      // Check custom model input
+      var customModelEl = document.getElementById('settings-model-custom')
+      if (customModelEl && customModelEl.style.display !== 'none' && customModelEl.value) {
+        model = customModelEl.value
+      }
+      this.aiProviderService.setProvider(providerId, apiKey, model)
+
+      // Save and temporarily override maxTokens for minimal credit usage on test
+      var savedMaxTokens = this.aiProviderService.maxTokens
+      this.aiProviderService.maxTokens = 1
+
+      await this.aiProviderService.sendMessage([{ role: 'user', content: 'Hi' }])
+      this.aiProviderService.maxTokens = savedMaxTokens
+
+      resultEl.textContent = '✓ Connected to ' + AnyaHelpers.escapeHtml(providerId) + ' / ' + AnyaHelpers.escapeHtml(model)
+      resultEl.className = 'settings-test-result success'
+      AnyaToast.success('AI connection successful')
+    } catch (err) {
+      if (typeof savedMaxTokens !== 'undefined') this.aiProviderService.maxTokens = savedMaxTokens
+      var normalized = this.aiProviderService.normalizeError(err, providerId, model)
+      resultEl.innerHTML = '✕ ' + AnyaHelpers.escapeHtml(normalized.fix)
+      resultEl.className = 'settings-test-result fail'
+      // Show detailed error as an error toast
+      AnyaToast.error(normalized.provider + ' (' + normalized.code + '): ' + normalized.raw.slice(0, 120))
+    }
   }
-}
 
 SettingsPage.prototype.saveConfig = function() {
   var self = this
@@ -599,23 +937,30 @@ SettingsPage.prototype.saveConfig = function() {
   var modelEl = document.getElementById('settings-model')
 
   if (providerEl) {
-    this.config.aiProvider.provider = providerEl.value
-    this.config.aiProvider.apiKey = keyEl ? keyEl.value : ''
-    this.config.aiProvider.model = modelEl ? modelEl.value : ''
+    var activeProvider = providerEl.value
+    if (!this.config.aiProvider.providers) this.config.aiProvider.providers = {}
+    if (!this.config.aiProvider.providers[activeProvider]) {
+      this.config.aiProvider.providers[activeProvider] = {}
+    }
+    this.config.aiProvider.activeProvider = activeProvider
+    var currentCfg = this.config.aiProvider.providers[activeProvider]
+    currentCfg.apiKey = keyEl ? keyEl.value : ''
+    currentCfg.model = modelEl ? modelEl.value : ''
     var customModelEl = document.getElementById('settings-model-custom')
     if (customModelEl && customModelEl.style.display !== 'none' && customModelEl.value) {
-      this.config.aiProvider.model = customModelEl.value
+      currentCfg.model = customModelEl.value
     }
+    var tempEl = document.getElementById('settings-temperature')
+    if (tempEl) currentCfg.temperature = parseFloat(tempEl.value) || 0.7
+    var maxTokensEl = document.getElementById('settings-max-tokens')
+    if (maxTokensEl) currentCfg.maxTokens = parseInt(maxTokensEl.value) || 4096
+    // Clean up old flat fields if they still exist
+    delete this.config.aiProvider.provider
+    delete this.config.aiProvider.apiKey
+    delete this.config.aiProvider.model
+    delete this.config.aiProvider.temperature
+    delete this.config.aiProvider.maxTokens
   }
-
-  var defaultModelEl = document.getElementById('settings-default-model')
-  if (defaultModelEl) this.config.aiProvider.model = defaultModelEl.value
-
-  var tempEl = document.getElementById('settings-temperature')
-  if (tempEl) this.config.aiProvider.temperature = parseFloat(tempEl.value) || 0.7
-
-  var maxTokensEl = document.getElementById('settings-max-tokens')
-  if (maxTokensEl) this.config.aiProvider.maxTokens = parseInt(maxTokensEl.value) || 4096
 
   var promptEl = document.getElementById('settings-prompt')
   if (promptEl) this.config.prompt = promptEl.value
@@ -672,6 +1017,14 @@ SettingsPage.prototype.saveConfig = function() {
     var result = await window.anya.config.write(self.config)
     if (result.success) {
       self.applyAppearance()
+      // Apply editor settings (font, tab, wordwrap) to Monaco
+      if (window.app && window.app.editorManager && window.app.editorManager.applyConfig) {
+        window.app.editorManager.applyConfig(self.config)
+      }
+      // Reload chat config to pick up provider/model changes
+      if (window.app && window.app.chat && window.app.chat.loadConfig) {
+        window.app.chat.loadConfig()
+      }
       AnyaToast.success('Settings saved')
       self.close()
     } else {

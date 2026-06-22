@@ -492,6 +492,7 @@ ipcMain.handle('is-maximized', () => mainWindow?.isMaximized() || false)
 ipcMain.handle('toggle-dev-tools', () => mainWindow?.webContents.toggleDevTools())
 
 // AI Proxy — all fetch goes through main process (bypasses CSP)
+// Supports both regular and streaming responses
 ipcMain.handle('ai-proxy', async (event, opts) => {
   try {
     var url = opts.url
@@ -500,7 +501,6 @@ ipcMain.handle('ai-proxy', async (event, opts) => {
     var body = opts.body
     var controller = new AbortController()
 
-    // Store controller so renderer can abort
     if (!global.aiControllers) global.aiControllers = new Map()
     if (opts.requestId) global.aiControllers.set(opts.requestId, controller)
 
@@ -512,6 +512,57 @@ ipcMain.handle('ai-proxy', async (event, opts) => {
     if (body) fetchOpts.body = body
 
     var res = await fetch(url, fetchOpts)
+
+    var responseHeaders = Object.fromEntries(res.headers.entries())
+
+    // If streaming is requested, stream chunks back to renderer
+    if (opts.stream && res.body) {
+      var reader = res.body.getReader()
+      var decoder = new TextDecoder()
+      var buffer = ''
+      var fullText = ''
+      var chunks = []
+
+      while (true) {
+        var readResult = await reader.read()
+        if (readResult.done) break
+
+        var chunk = decoder.decode(readResult.value, { stream: true })
+        fullText += chunk
+
+        // Send each chunk to renderer via event
+        if (mainWindow && opts.requestId) {
+          mainWindow.webContents.send('ai-stream-chunk', {
+            requestId: opts.requestId,
+            chunk: chunk,
+            done: false
+          })
+        }
+      }
+
+      if (opts.requestId) global.aiControllers.delete(opts.requestId)
+
+      // Signal stream complete
+      if (mainWindow && opts.requestId) {
+        mainWindow.webContents.send('ai-stream-chunk', {
+          requestId: opts.requestId,
+          chunk: '',
+          done: true,
+          fullText: fullText
+        })
+      }
+
+      return {
+        success: true,
+        status: res.status,
+        ok: res.status >= 200 && res.status < 300,
+        headers: responseHeaders,
+        body: fullText,
+        streamed: true
+      }
+    }
+
+    // Non-streaming: return entire body
     var text = await res.text()
 
     if (opts.requestId) global.aiControllers.delete(opts.requestId)
@@ -519,10 +570,12 @@ ipcMain.handle('ai-proxy', async (event, opts) => {
     return {
       success: true,
       status: res.status,
-      headers: Object.fromEntries(res.headers.entries()),
+      ok: res.status >= 200 && res.status < 300,
+      headers: responseHeaders,
       body: text
     }
   } catch (err) {
+    if (opts.requestId && global.aiControllers) global.aiControllers.delete(opts.requestId)
     if (err.name === 'AbortError') {
       return { success: false, aborted: true, error: 'Request aborted' }
     }
@@ -543,23 +596,31 @@ ipcMain.handle('ai-abort', (event, requestId) => {
 ipcMain.handle('ai-fetch-ollama-models', async () => {
   try {
     var res = await fetch('http://localhost:11434/api/tags')
-    if (!res.ok) return { success: false, error: 'Ollama not running (status ' + res.status + ')' }
+    if (!res.ok) return { success: false, status: res.status, error: 'Ollama not running (status ' + res.status + ')' }
     var data = await res.json()
     return { success: true, models: data.models || [] }
   } catch (err) {
-    return { success: false, error: 'Cannot connect to Ollama. Is it running?' }
+    return { success: false, error: 'Cannot connect to Ollama. Is it running on http://localhost:11434 ?' }
   }
 })
 
 // Fetch OpenRouter models
 ipcMain.handle('ai-fetch-openrouter-models', async (event, apiKey) => {
   try {
-    var headers = {}
+    var headers = { 'HTTP-Referer': 'https://anya-ide.app', 'X-Title': 'Anya IDE' }
     if (apiKey) headers['Authorization'] = 'Bearer ' + apiKey
     var res = await fetch('https://openrouter.ai/api/v1/models', { headers: headers })
-    if (!res.ok) return { success: false, error: 'OpenRouter API error: ' + res.status }
-    var data = await res.json()
-    return { success: true, models: data.data || [] }
+    var text = await res.text()
+    if (!res.ok) {
+      return {
+        success: false,
+        status: res.status,
+        error: 'OpenRouter API error: ' + res.status,
+        rawBody: text.slice(0, 500)
+      }
+    }
+    var data = JSON.parse(text)
+    return { success: true, status: res.status, models: data.data || [] }
   } catch (err) {
     return { success: false, error: err.message }
   }

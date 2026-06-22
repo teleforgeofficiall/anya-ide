@@ -154,8 +154,39 @@ AnyaApp.prototype.handleCommand = function(cmd) {
     case 'settings': this.settings.toggle(this.chat.aiProvider); break
     case 'about': this.showAbout(); break
     case 'exit': window.anya.window.close(); break
+    case 'plan': this.handleAICommand('plan'); break
+    case 'build': this.handleAICommand('build'); break
+    case 'review': this.handleAICommand('review'); break
+    case 'fix': this.handleAICommand('fix'); break
+    case 'test': this.handleAICommand('test'); break
+    case 'deploy': this.handleAICommand('deploy'); break
+    case 'commit': this.handleAICommand('commit'); break
+    case 'explain': this.handleAICommand('explain'); break
   }
 }
+
+AnyaApp.prototype.initAI = function() {
+  var self = this
+  this.chat.setActiveSkills([])
+  this.chat.setAgentMode('chat')
+}
+
+AnyaApp.prototype.handleAICommand = function(cmd) {
+  var self = this
+
+  switch (cmd) {
+    case 'plan': this.chat.setAgentMode('plan'); break
+    case 'build': this.chat.setAgentMode('build'); break
+    case 'review': this.chat.setAgentMode('review'); break
+    case 'fix': this.chat.setAgentMode('debug'); break
+    case 'test': this.chat.sendMessage('Generate and run tests for the current project'); break
+    case 'deploy': this.chat.setAgentMode('deploy'); break
+    case 'commit': this.chat.sendMessage('Create a git commit with a descriptive message'); break
+    case 'explain': this.chat.sendMessage('Explain the current code in detail'); break
+    default: this.chat.sendMessage(cmd)
+  }
+}
+
 
 AnyaApp.prototype.newFile = function() {
   var self = this
@@ -329,3 +360,4 @@ AnyaApp.prototype.showAbout = function() {
 }
 
 var app = new AnyaApp()
+app.initAI()

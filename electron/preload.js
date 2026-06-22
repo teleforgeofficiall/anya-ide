@@ -66,7 +66,12 @@ contextBridge.exposeInMainWorld('anya', {
     proxy: (opts) => ipcRenderer.invoke('ai-proxy', opts),
     abort: (requestId) => ipcRenderer.invoke('ai-abort', requestId),
     fetchOllamaModels: () => ipcRenderer.invoke('ai-fetch-ollama-models'),
-    fetchOpenRouterModels: (apiKey) => ipcRenderer.invoke('ai-fetch-openrouter-models', apiKey)
+    fetchOpenRouterModels: (apiKey) => ipcRenderer.invoke('ai-fetch-openrouter-models', apiKey),
+    onStreamChunk: (callback) => {
+      const listener = (event, data) => callback(data)
+      ipcRenderer.on('ai-stream-chunk', listener)
+      return () => ipcRenderer.removeListener('ai-stream-chunk', listener)
+    }
   },
 
   update: {

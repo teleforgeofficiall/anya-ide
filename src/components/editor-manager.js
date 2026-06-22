@@ -157,15 +157,24 @@ EditorManager.prototype.openFile = async function(filePath) {
   this.setActiveTab(tabId)
 
   if (this.editor) {
+    var content = result.content || ''
     var uri = monaco.Uri.parse('file:///' + filePath.replace(/\\/g, '/'))
-    var model = monaco.editor.getModel(uri)
-    if (!model) {
-      model = monaco.editor.createModel(result.content, language, uri)
-    } else {
-      model.setValue(result.content)
+    try {
+      var model = monaco.editor.getModel(uri)
+      if (!model) {
+        model = monaco.editor.createModel(content, language, uri)
+      } else {
+        model.setValue(content)
+      }
+      this.editor.setModel(model)
+    } catch (e) {
+      // Fallback: if model creation fails, set value directly on editor
+      try { this.editor.setValue(content) } catch(e2) {}
     }
-    this.editor.setModel(model)
     this.editor.focus()
+    // Force re-layout to ensure content renders
+    var ed = this.editor
+    setTimeout(function() { if (ed) ed.layout() }, 0)
   }
 }
 
@@ -176,11 +185,16 @@ EditorManager.prototype.setActiveTab = function(tabId) {
   var tab = this.tabs.find(function(t) { return t.id === tabId })
   if (tab && this.editor) {
     var uri = monaco.Uri.parse('file:///' + tab.filePath.replace(/\\/g, '/'))
-    var model = monaco.editor.getModel(uri)
-    if (!model) {
-      model = monaco.editor.createModel(tab.savedContent || '', tab.language, uri)
+    try {
+      var model = monaco.editor.getModel(uri)
+      if (!model) {
+        model = monaco.editor.createModel(tab.savedContent || '', tab.language, uri)
+      }
+      this.editor.setModel(model)
+    } catch (e) {
+      // Fallback: if model creation fails, set value directly
+      try { this.editor.setValue(tab.savedContent || '') } catch(e2) {}
     }
-    this.editor.setModel(model)
     this.editor.focus()
   }
 }
@@ -264,11 +278,17 @@ EditorManager.prototype.renderTabs = function() {
 
 EditorManager.prototype.applyConfig = function(config) {
   if (!this.editor) return
+  // Handle wrapped config from window.anya.config.read() which returns { success, config, ... }
+  var appConfig = config
+  if (config && config.config) appConfig = config.config
+  // Handle nested structure: { appearance: { fontSize, fontFamily }, workspace: { tabSize, wordWrap } }
+  var appearance = appConfig.appearance || {}
+  var workspace = appConfig.workspace || {}
   var opts = {}
-  if (config.fontSize) opts.fontSize = parseInt(config.fontSize)
-  if (config.fontFamily) opts.fontFamily = config.fontFamily
-  if (config.tabSize) opts.tabSize = parseInt(config.tabSize)
-  if (config.wordWrap) opts.wordWrap = config.wordWrap
+  if (appearance.fontSize) opts.fontSize = parseInt(appearance.fontSize)
+  if (appearance.fontFamily) opts.fontFamily = appearance.fontFamily
+  if (workspace.tabSize) opts.tabSize = parseInt(workspace.tabSize)
+  if (workspace.wordWrap !== undefined) opts.wordWrap = workspace.wordWrap ? 'on' : 'off'
   if (Object.keys(opts).length > 0) this.editor.updateOptions(opts)
 }
 
